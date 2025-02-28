@@ -241,7 +241,7 @@ Este projeto está licenciado sob a licença MIT - veja o arquivo LICENSE para d
 
 ## Créditos
 
-- SPAdes Master é desenvolvido e mantido por [Seu Nome/Organização]
+- SPAdes Master é desenvolvido e mantido por [Lucas Giovanella]
 - [SPAdes](https://github.com/ablab/spades) - St. Petersburg genome assembler
 
 ## Citação
