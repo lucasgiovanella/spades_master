@@ -249,7 +249,7 @@ Este projeto está licenciado sob a licença MIT - veja o arquivo LICENSE para d
 Se você usar o SPAdes Master em sua pesquisa, por favor cite:
 
 ```
-Lucas Giovanella, et al. (2025). SPAdes Master: A graphical interface for SPAdes genome assembler. [URL do Repositório]
+Lucas Giovanella, et al. (2025). SPAdes Master: A graphical interface for SPAdes genome assembler. [https://github.com/lucasgiovanella/spades_master]
 ```
 
 E não se esqueça de citar também o SPAdes:
