@@ -1,0 +1,4 @@
+/spades_results/*
+/spades_venv/*
+/build/*
+/dist/*
