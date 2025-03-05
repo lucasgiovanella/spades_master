@@ -8,6 +8,17 @@ import os
 import threading
 from datetime import datetime
 
+try:
+    from ttkthemes import ThemedTk
+    HAS_TTKTHEMES = True
+except ImportError:
+    HAS_TTKTHEMES = False
+
+if HAS_TTKTHEMES:
+    BaseClass = ThemedTk
+else:
+    BaseClass = tk.Tk
+
 from config.settings import APP_VERSION, APP_NAME
 from utils.status_updater import StatusUpdater
 from utils.logging_utils import log_info, log_error
@@ -22,15 +33,19 @@ from ui.dialogs.params_dialog import SPAdesParamsDialog
 from ui.dialogs.spades_path_dialog import SpadesPathDialog
 
 
-class SPAdesMasterApp(tk.Tk):
+class SPAdesMasterApp(BaseClass):
     """Aplicativo principal para gerenciamento de montagens SPAdes"""
     def __init__(self):
-        super().__init__()
+        
+        # Inicializar a classe pai apenas uma vez, com base na disponibilidade do ttkthemes
+        if HAS_TTKTHEMES:
+            super().__init__()  # Inicializa ThemedTk
+            # self.set_theme("equilux")
+        else:
+            super().__init__()  # Inicializa Tk padrão
         
         # Configurar a janela principal
         self.title(f"{APP_NAME} v{APP_VERSION} - Gerenciador de Montagens")
-        self.geometry("1000x700")
-        self.minsize(800, 600)
         
         # Criar ícone se disponível
         try:
@@ -205,9 +220,10 @@ class SPAdesMasterApp(tk.Tk):
         self.execution_frame.bind("<<CancelJob>>", lambda e: self._cancel_job())
         self.execution_frame.bind("<<OpenSSHTerminal>>", lambda e: self._open_ssh_terminal())
         
-        # Eventos do ResultsFrame
-        self.results_frame.bind("<<DownloadResults>>", lambda e: self._download_results())
+        # Eventos do ResultsFrame - modificado para processar dados do evento
+        self.results_frame.bind("<<DownloadResults>>", self._download_results_handler)
         self.results_frame.bind("<<OpenResultsFolder>>", lambda e: self._open_results_folder())
+        self.results_frame.bind("<<CleanRemoteFiles>>", lambda e: self._clean_remote_files())  # Adicionar esse evento
         
     def _test_connection(self):
         """Testa a conexão com o servidor atual"""
@@ -512,7 +528,11 @@ class SPAdesMasterApp(tk.Tk):
         )
         
         if success:
-            self.execution_frame.update_job_status("SPAdes iniciado. Monitorando progresso...")
+            # Certifique-se de que o caminho completo do job_output_file seja definido corretamente
+            self.execution_frame.update_job_status(f"SPAdes iniciado. Monitorando progresso em {remote_dir}/{output_dir}...")
+            
+            # Certificar-se de que o frame de execução está visível
+            self.notebook.select(self.notebook.index(self.execution_frame))
             
     def _cancel_job(self):
         """Cancela o job em execução"""
@@ -533,7 +553,30 @@ class SPAdesMasterApp(tk.Tk):
         if success:
             self.execution_frame.update_job_status("Job cancelado pelo usuário.")
             self.execution_frame.stop_monitoring()
-            messagebox.showinfo("Sucesso", "Job cancelado com sucesso.")
+            
+            # Perguntar ao usuário se deseja limpar os arquivos do job cancelado
+            # Neste momento a conexão SSH ainda está ativa
+            if messagebox.askyesno("Limpar Arquivos", 
+                                  "Job cancelado com sucesso. Deseja limpar os arquivos remotos do job cancelado?"):
+                # Obter parâmetros do job
+                params = self.config_frame.get_spades_params()
+                
+                # Verificar se a conexão está ativa antes de prosseguir
+                if not self.job_manager.connected or not self.job_manager.ssh or (
+                    hasattr(self.job_manager.ssh, 'get_transport') and (
+                        not self.job_manager.ssh.get_transport() or 
+                        not self.job_manager.ssh.get_transport().is_active()
+                    )):
+                    # Tentar reconectar se a sessão já foi encerrada
+                    if not self._connect_to_server():
+                        messagebox.showwarning("Aviso", 
+                            "A conexão SSH foi perdida. Reconecte ao servidor e tente limpar os arquivos manualmente.")
+                        return
+                
+                # Chamar a função de limpeza específica para o diretório do job
+                self._do_clean_remote_files(params["remote_dir"], params["output_dir"])
+            else:
+                messagebox.showinfo("Sucesso", "Job cancelado com sucesso.")
         else:
             messagebox.showerror("Erro", "Não foi possível cancelar o job. Verifique o log para mais detalhes.")
     
@@ -569,8 +612,24 @@ class SPAdesMasterApp(tk.Tk):
             self.status_updater.update_log("Não foi possível abrir o terminal SSH", "ERROR")
             messagebox.showerror("Erro", "Não foi possível abrir o terminal SSH. Verifique se o terminal está disponível no seu sistema.")
             
-    def _download_results(self):
-        """Baixa os resultados do servidor"""
+    def _download_results_handler(self, event):
+        """Manipulador para evento de download de resultados"""
+        # Tentar obter dados do evento, padrão para True se não for especificado
+        try:
+            event_data = event.data if hasattr(event, 'data') else {}
+            important_only = event_data.get("important_only", True)
+        except:
+            important_only = True
+        
+        self._download_results(important_only)
+
+    def _download_results(self, important_only=True):
+        """
+        Baixa os resultados do servidor
+        
+        Args:
+            important_only: Se True, baixa apenas os arquivos importantes
+        """
         if not self.job_manager.connected:
             if not self._connect_to_server():
                 return
@@ -589,24 +648,40 @@ class SPAdesMasterApp(tk.Tk):
             local_dir = os.path.join(os.getcwd(), "spades_results")
             self.config_frame.local_output_dir.set(local_dir)
             
+        # Informação sobre o tipo de download
+        download_type = "arquivos importantes" if important_only else "todos os arquivos"
+        self.status_updater.update_log(f"Iniciando download de {download_type}...", "INFO")
+            
         # Baixar em thread separada
         threading.Thread(
             target=self._do_download_results,
-            args=(params["remote_dir"], params["output_dir"], local_dir),
+            args=(params["remote_dir"], params["output_dir"], local_dir, important_only),
             daemon=True
         ).start()
         
-    def _do_download_results(self, remote_dir, output_dir, local_dir):
-        """Executa o download dos resultados em thread separada"""
-        success = self.job_manager.download_results(remote_dir, output_dir, local_dir)
+    def _do_download_results(self, remote_dir, output_dir, local_dir, important_only):
+        """
+        Executa o download dos resultados em thread separada
+        
+        Args:
+            remote_dir: Diretório remoto
+            output_dir: Diretório de saída
+            local_dir: Diretório local
+            important_only: Se True, baixa apenas arquivos importantes
+        """
+        success = self.job_manager.download_results(remote_dir, output_dir, local_dir, important_only)
         
         if success:
             # Atualizar lista de arquivos baixados
             self.results_frame.update_results_list(local_dir, output_dir)
             
             # Mostrar mensagem de sucesso
-            messagebox.showinfo("Sucesso", "Resultados baixados com sucesso.")
+            download_type = "arquivos importantes" if important_only else "todos os arquivos"
+            messagebox.showinfo("Sucesso", f"{download_type.capitalize()} baixados com sucesso.")
             
+            # Mudar para a aba de resultados
+            self.notebook.select(self.notebook.index(self.results_frame))
+
     def _open_results_folder(self):
         """Abre o diretório de resultados no explorador de arquivos"""
         params = self.config_frame.get_spades_params()
@@ -715,3 +790,73 @@ Desenvolvido para facilitar o uso do SPAdes em ambientes computacionais distribu
         else:
             self.status_updater.update_log(message, "ERROR")
             messagebox.showerror("Erro", message)
+            
+    def _clean_remote_files(self):
+        """Limpa os arquivos remotos no servidor"""
+        if not self.job_manager.connected:
+            if not self._connect_to_server():
+                return
+        
+        # Verificar se job está em execução
+        if self.job_manager.job_running:
+            self.status_updater.update_log("Não é possível limpar arquivos enquanto um job está em execução", "WARNING")
+            messagebox.showwarning("Atenção", "Não é possível limpar arquivos enquanto um job está em execução.")
+            return
+        
+        # Obter parâmetros
+        params = self.config_frame.get_spades_params()
+        
+        # Confirmar com o usuário antes de prosseguir
+        if params["output_dir"]:
+            msg = f"Esta operação removerá o diretório '{params['output_dir']}' de '{params['remote_dir']}' no servidor.\nEsta ação não pode ser desfeita. Continuar?"
+        else:
+            msg = f"Esta operação removerá TODOS OS ARQUIVOS de '{params['remote_dir']}' no servidor.\nEsta ação não pode ser desfeita. Continuar?"
+        
+        if not messagebox.askyesno("Confirmar Limpeza", msg, icon="warning"):
+            self.status_updater.update_log("Operação de limpeza cancelada pelo usuário")
+            return
+        
+        # Iniciar thread para limpeza
+        threading.Thread(
+            target=self._do_clean_remote_files,
+            args=(params["remote_dir"], params["output_dir"]),
+            daemon=True
+        ).start()
+
+    def _do_clean_remote_files(self, remote_dir, output_dir=None):
+        """
+        Executa a limpeza de arquivos remotos em thread separada
+        
+        Args:
+            remote_dir: Diretório remoto
+            output_dir: Diretório específico de saída (opcional)
+        """
+        # Verificar se ainda estamos conectados, reconectar se necessário
+        if not self.job_manager.connected or not self.job_manager.ssh or (
+            hasattr(self.job_manager.ssh, 'get_transport') and (
+                not self.job_manager.ssh.get_transport() or 
+                not self.job_manager.ssh.get_transport().is_active()
+            )):
+            self.status_updater.update_log("Sessão SSH não está ativa. Tentando reconectar...", "WARNING")
+            if not self._connect_to_server():
+                self.status_updater.update_log("Não foi possível reconectar ao servidor. Impossível limpar arquivos.", "ERROR")
+                messagebox.showerror("Erro", "A conexão SSH foi perdida e não foi possível reconectar. Tente novamente mais tarde.")
+                return
+                
+        # Mostrar mensagem de processamento
+        self.status_updater.update_status("Limpando arquivos remotos...")
+        self.status_updater.update_log("Iniciando limpeza de arquivos remotos...", "INFO")
+        
+        # Chamar método do job_manager para limpar
+        success, message = self.job_manager.clean_remote_files(remote_dir, output_dir)
+        
+        if success:
+            # Mostrar mensagem de sucesso
+            self.status_updater.update_status("Arquivos remotos limpos com sucesso")
+            self.status_updater.update_log(message, "SUCCESS")
+            messagebox.showinfo("Sucesso", f"Arquivos remotos limpos com sucesso.\n\n{message}")
+        else:
+            # Mostrar mensagem de erro
+            self.status_updater.update_status("Erro ao limpar arquivos remotos")
+            self.status_updater.update_log(message, "ERROR")
+            messagebox.showerror("Erro", f"Erro ao limpar arquivos remotos.\n\n{message}")

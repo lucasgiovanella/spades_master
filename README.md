@@ -219,8 +219,13 @@ pyinstaller --name="SPAdesMaster" --windowed --icon=media/spades_icon.icns --add
 # Instalar PyInstaller
 pip install pyinstaller
 
+<<<<<<< HEAD
 # Gerar aplicativo
 pyinstaller --name="SPAdesMaster" --windowed --icon=media/spades_icon.ico --add-data="media:media" main.py
+=======
+# Gerar aplicativo para Linux
+pyinstaller --name="SPAdesMaster" --windowed --icon=media/spades_icon.ico-add-data="media:media" main.py
+>>>>>>> teste
 ```
 
 O executável resultante será encontrado na pasta `dist`.

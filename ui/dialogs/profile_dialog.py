@@ -25,10 +25,10 @@ class ProfileDialog:
         # Criar janela de diálogo
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Adicionar Perfil" if not profile_name else f"Editar Perfil: {profile_name}")
-        self.dialog.geometry("500x400")
+        self.dialog.geometry("700x600")  # Aumentada a largura de 500 para 700
         self.dialog.transient(parent)
         self.dialog.grab_set()
-        self.dialog.resizable(False, False)
+        self.dialog.resizable(True, True)  # Permitir redimensionamento
         
         # Centralizar no pai
         self.dialog.update_idletasks()
@@ -66,12 +66,30 @@ class ProfileDialog:
     
     def _create_widgets(self):
         """Cria os widgets do diálogo"""
-        frame = ttk.Frame(self.dialog, padding="20 20 20 20")
+        # Usar Canvas com Scrollbar para garantir que todo conteúdo seja acessível
+        canvas = tk.Canvas(self.dialog)
+        scrollbar = ttk.Scrollbar(self.dialog, orient="vertical", command=canvas.yview)
+        
+        # Frame principal que conterá todos os widgets
+        main_frame = ttk.Frame(canvas)
+        
+        # Configurar scrolling
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Pack dos elementos principais
+        scrollbar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+        
+        # Criar janela no canvas
+        canvas.create_window((0, 0), window=main_frame, anchor="nw", width=680)  # Aumentada a largura
+        
+        # Frame com padding para os widgets
+        frame = ttk.Frame(main_frame, padding="20 20 20 20")
         frame.pack(fill=tk.BOTH, expand=True)
         
         # Nome do perfil
         ttk.Label(frame, text="Nome do Perfil:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
-        name_entry = ttk.Entry(frame, textvariable=self.profile_name_var, width=30)
+        name_entry = ttk.Entry(frame, textvariable=self.profile_name_var, width=40)  # Aumentada a largura do campo
         name_entry.grid(row=0, column=1, columnspan=2, sticky=(tk.W, tk.E), padx=5, pady=5)
         
         # Se estiver editando, desabilitar a mudança de nome
@@ -83,7 +101,7 @@ class ProfileDialog:
         
         # Servidor
         ttk.Label(frame, text="Endereço do Servidor:").grid(row=2, column=0, sticky=tk.W, padx=5, pady=5)
-        host_entry = ttk.Entry(frame, textvariable=self.host_var, width=30)
+        host_entry = ttk.Entry(frame, textvariable=self.host_var, width=40)  # Aumentada a largura do campo
         host_entry.grid(row=2, column=1, columnspan=2, sticky=(tk.W, tk.E), padx=5, pady=5)
         
         # Porta
@@ -93,7 +111,7 @@ class ProfileDialog:
         
         # Usuário
         ttk.Label(frame, text="Usuário:").grid(row=4, column=0, sticky=tk.W, padx=5, pady=5)
-        username_entry = ttk.Entry(frame, textvariable=self.username_var, width=30)
+        username_entry = ttk.Entry(frame, textvariable=self.username_var, width=40)  # Aumentada a largura do campo
         username_entry.grid(row=4, column=1, columnspan=2, sticky=(tk.W, tk.E), padx=5, pady=5)
         
         # Separador
@@ -102,6 +120,9 @@ class ProfileDialog:
         # Método de autenticação
         auth_frame = ttk.LabelFrame(frame, text="Método de Autenticação", padding=10)
         auth_frame.grid(row=6, column=0, columnspan=3, sticky=(tk.W, tk.E), padx=5, pady=5)
+        
+        # Configurar colunas do auth_frame para melhor layout
+        auth_frame.columnconfigure(1, weight=1)
         
         # Senha
         password_radio = ttk.Radiobutton(
@@ -114,7 +135,7 @@ class ProfileDialog:
         password_radio.grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
         
         ttk.Label(auth_frame, text="Senha:").grid(row=1, column=0, sticky=tk.W, padx=20, pady=5)
-        self.password_entry = ttk.Entry(auth_frame, textvariable=self.password_var, width=30, show="*")
+        self.password_entry = ttk.Entry(auth_frame, textvariable=self.password_var, width=40, show="*")  # Aumentada a largura
         self.password_entry.grid(row=1, column=1, sticky=(tk.W, tk.E), padx=5, pady=5)
         
         # Chave SSH
@@ -128,7 +149,7 @@ class ProfileDialog:
         key_radio.grid(row=2, column=0, sticky=tk.W, padx=5, pady=5)
         
         ttk.Label(auth_frame, text="Arquivo de Chave:").grid(row=3, column=0, sticky=tk.W, padx=20, pady=5)
-        self.key_entry = ttk.Entry(auth_frame, textvariable=self.key_path_var, width=30)
+        self.key_entry = ttk.Entry(auth_frame, textvariable=self.key_path_var, width=40)  # Aumentada a largura
         self.key_entry.grid(row=3, column=1, sticky=(tk.W, tk.E), padx=5, pady=5)
         
         self.key_button = ttk.Button(auth_frame, text="Procurar", command=self._browse_key_file)
@@ -143,6 +164,22 @@ class ProfileDialog:
         
         ttk.Button(button_frame, text="Salvar", command=self._save_profile, width=10).grid(row=0, column=0, padx=10)
         ttk.Button(button_frame, text="Cancelar", command=self.dialog.destroy, width=10).grid(row=0, column=1, padx=10)
+        
+        # Configurar o scroll do canvas
+        def _on_frame_configure(event=None):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+            
+        main_frame.bind("<Configure>", _on_frame_configure)
+        
+        # Permitir scroll com a roda do mouse
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        
+        # Garantir que o canvas tenha a altura mínima necessária
+        main_frame.update_idletasks()
+        canvas.config(width=680, height=580)
     
     def _toggle_auth_method(self):
         """Alterna entre métodos de autenticação"""

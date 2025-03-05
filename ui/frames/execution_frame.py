@@ -301,8 +301,35 @@ class ExecutionFrame(ttk.Frame):
         
     def _cancel_job(self):
         """Cancela o job em execução"""
-        # Disparar evento para a classe principal
-        self.event_generate("<<CancelJob>>")
+        if not self.job_manager.connected:
+            self._add_to_log("Não há conexão com o servidor", "WARNING")
+            messagebox.showwarning("Atenção", "Não há conexão com o servidor.")
+            return
+            
+        # Verificar se há processos do SPAdes em execução
+        processes_info = self.job_manager.get_user_processes()
+        if not processes_info or not processes_info.get('spades_processes'):
+            self._add_to_log("Nenhum processo SPAdes detectado em execução", "WARNING")
+            
+            # Verificar se temos um job_pid ou job_id registrado
+            if not self.job_manager.job_pid and not self.job_manager.job_running:
+                messagebox.showwarning("Atenção", "Nenhum job SPAdes em execução para cancelar.")
+                return
+        
+        # Confirmar cancelamento
+        if messagebox.askyesno("Confirmar Cancelamento", "Deseja realmente cancelar o job em execução?"):
+            # Mostrar detalhes dos processos que serão cancelados
+            if processes_info and processes_info.get('spades_processes'):
+                process_info_text = "\n".join([
+                    f"- PID {p['pid']}: {p['cmd'][:50]}..." for p in processes_info['spades_processes'][:5]
+                ])
+                if len(processes_info['spades_processes']) > 5:
+                    process_info_text += f"\n(e mais {len(processes_info['spades_processes']) - 5} processos)"
+                    
+                self._add_to_log(f"Cancelando os seguintes processos:\n{process_info_text}", "WARNING")
+            
+            # Disparar evento para a classe principal
+            self.event_generate("<<CancelJob>>")
         
     def _open_ssh_terminal(self):
         """Abre um terminal com comando SSH pronto"""
@@ -340,29 +367,34 @@ class ExecutionFrame(ttk.Frame):
             self.elapsed_time_var.set(f"{hours:02d}:{minutes:02d}:{seconds:02d}")
         
         # Obter uso de recursos via SSH
-        if self.job_manager.ssh and self.job_manager.job_running and self.job_manager.job_pid:
+        if self.job_manager.ssh and self.job_manager.job_running:
             try:
-                # Obter uso de CPU
-                stdin, stdout, stderr = self.job_manager.ssh.exec_command(
-                    f"ps -p {self.job_manager.job_pid} -o %cpu | tail -n 1"
-                )
-                cpu = stdout.read().decode().strip()
-                if cpu and cpu.replace('.', '', 1).isdigit():
-                    self.cpu_usage_var.set(f"{cpu}%")
-                    self._add_to_log(f"Uso de CPU: {cpu}%", "METRICS")
-                
-                # Obter uso de memória
-                stdin, stdout, stderr = self.job_manager.ssh.exec_command(
-                    f"ps -p {self.job_manager.job_pid} -o %mem,rss | tail -n 1"
-                )
-                mem_info = stdout.read().decode().strip()
-                if mem_info:
-                    mem_parts = mem_info.split()
-                    if len(mem_parts) >= 2:
-                        mem_percent, mem_rss = mem_parts
-                        mem_mb = int(mem_rss) // 1024  # Converter KB para MB
-                        self.memory_usage_var.set(f"{mem_mb} MB ({mem_percent}%)")
-                        self._add_to_log(f"Uso de memória: {mem_mb} MB ({mem_percent}%)", "METRICS")
+                # Obter informações de todos os processos do usuário
+                process_info = self.job_manager.get_user_processes()
+                if process_info:
+                    # Atualizar uso de CPU (todos os processos SPAdes)
+                    spades_cpu = process_info['spades_cpu']
+                    self.cpu_usage_var.set(f"{spades_cpu}%")
+                    
+                    # Atualizar uso de memória (todos os processos SPAdes)
+                    spades_mem = process_info['spades_mem']
+                    spades_mem_mb = process_info['spades_mem_mb']
+                    self.memory_usage_var.set(f"{spades_mem_mb} MB ({spades_mem}%)")
+                    
+                    # Adicionar ao log apenas se houver processos e números significativos
+                    if process_info['spades_processes'] and (spades_cpu > 0.5 or spades_mem > 0.5):
+                        self._add_to_log(f"Uso de CPU: {spades_cpu}% | Memória: {spades_mem_mb} MB ({spades_mem}%)", "METRICS")
+                        
+                        # Mostrar os 3 processos principais que estão consumindo mais CPU
+                        top_processes = sorted(process_info['spades_processes'], key=lambda x: x['cpu'], reverse=True)[:3]
+                        if top_processes:
+                            process_log = "Principais processos:"
+                            for proc in top_processes:
+                                cmd_short = proc['cmd'].split(' ')[0]
+                                if '/' in cmd_short:
+                                    cmd_short = cmd_short.split('/')[-1]
+                                process_log += f"\n  - {cmd_short} (PID {proc['pid']}): CPU {proc['cpu']}%, MEM {proc['mem']}%"
+                            self._add_to_log(process_log, "METRICS")
                 
                 # Verificar fase atual do SPAdes
                 if self.job_manager.job_output_file:

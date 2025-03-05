@@ -25,19 +25,43 @@ class ResultsFrame(ttk.Frame):
         button_frame = ttk.Frame(self)
         button_frame.pack(fill=tk.X, padx=5, pady=5)
         
-        # Botão para baixar resultados
+        # Opções de download
+        download_frame = ttk.LabelFrame(button_frame, text="Opções de Download")
+        download_frame.grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
+        
+        # Botão para baixar apenas arquivos importantes
         ttk.Button(
-            button_frame, 
-            text="Baixar Resultados", 
-            command=self._download_results
+            download_frame, 
+            text="Baixar Arquivos Importantes", 
+            command=lambda: self._download_results(important_only=True)
         ).grid(row=0, column=0, padx=5, pady=5)
+        
+        # Botão para baixar todos os arquivos
+        ttk.Button(
+            download_frame, 
+            text="Baixar Todos os Arquivos", 
+            command=lambda: self._download_results(important_only=False)
+        ).grid(row=0, column=1, padx=5, pady=5)
+        
+        # Frame para outros botões
+        other_frame = ttk.Frame(button_frame)
+        other_frame.grid(row=0, column=1, padx=5, pady=5)
         
         # Botão para abrir pasta de resultados
         ttk.Button(
-            button_frame, 
+            other_frame, 
             text="Abrir Pasta de Resultados", 
             command=self._open_results_folder
-        ).grid(row=0, column=1, padx=5, pady=5)
+        ).grid(row=0, column=0, padx=5, pady=5)
+        
+        # Botão para limpar arquivos remotos
+        self.clean_button = ttk.Button(
+            other_frame, 
+            text="Limpar Arquivos Remotos", 
+            command=self._clean_remote_files,
+            style="Warning.TButton"  # Estilo para alertar o usuário
+        )
+        self.clean_button.grid(row=0, column=1, padx=5, pady=5)
         
         # Lista de arquivos de resultados
         results_frame = ttk.LabelFrame(self, text="Arquivos de Resultados")
@@ -55,15 +79,32 @@ class ResultsFrame(ttk.Frame):
         self.results_info_text = tk.Text(info_frame, height=8, width=80, state='disabled')
         self.results_info_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-    def _download_results(self):
-        """Baixa os resultados do servidor"""
-        # Disparar evento para a classe principal
-        self.event_generate("<<DownloadResults>>")
+        # Tentar configurar estilo de botão de alerta (vermelho ou laranja)
+        try:
+            style = ttk.Style()
+            style.configure("Warning.TButton", foreground="red", font=('Helvetica', 9, 'bold'))
+        except Exception:
+            pass
+        
+    def _download_results(self, important_only=True):
+        """
+        Baixa os resultados do servidor
+        
+        Args:
+            important_only: Se True, baixa apenas arquivos importantes
+        """
+        # Disparar evento para a classe principal com informação do tipo de download
+        self.event_generate("<<DownloadResults>>", data={"important_only": important_only})
         
     def _open_results_folder(self):
         """Abre o diretório de resultados no explorador de arquivos"""
         # Disparar evento para a classe principal
         self.event_generate("<<OpenResultsFolder>>")
+        
+    def _clean_remote_files(self):
+        """Solicita a limpeza dos arquivos remotos no servidor"""
+        # Disparar evento para a classe principal
+        self.event_generate("<<CleanRemoteFiles>>")
         
     def update_results_list(self, local_dir, output_dir):
         """
@@ -84,11 +125,18 @@ class ResultsFrame(ttk.Frame):
         results_text.config(state='normal')
         results_text.delete(1.0, tk.END)
         
+        # Verificar se foi um download seletivo
+        is_selective = os.path.exists(os.path.join(local_output_path, "IMPORTANT_FILES_ONLY.txt"))
+        if is_selective:
+            results_text.insert(tk.END, "*** DOWNLOAD SELETIVO - Apenas arquivos essenciais foram baixados ***\n\n")
+        
         # Obter lista de arquivos
         try:
             files = []
             for root, dirs, filenames in os.walk(local_output_path):
                 for filename in filenames:
+                    if filename == "IMPORTANT_FILES_ONLY.txt":
+                        continue  # Pular o arquivo de marcação
                     file_path = os.path.join(root, filename)
                     rel_path = os.path.relpath(file_path, local_output_path)
                     size = os.path.getsize(file_path)
