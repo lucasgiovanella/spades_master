@@ -1,0 +1,395 @@
+{% extends "base.html" %} {% block title %}SPAdes Master - Resultados{% endblock
+%} {% block content %}
+<div class="row">
+  <div class="col-md-12 mb-4">
+    <div class="card">
+      <div class="card-header bg-primary text-white">
+        <h5 class="card-title mb-0">
+          <i class="fas fa-chart-bar me-2"></i>
+          Resultados de Montagem
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle me-2"></i>
+          Visualize e gerencie os resultados de suas montagens SPAdes.
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-hover table-striped" id="results-table">
+            <thead class="table-light">
+              <tr>
+                <th>Montagem</th>
+                <th>Data</th>
+                <th>Contigs</th>
+                <th>Tamanho Total</th>
+                <th>N50</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="results-table-body">
+              <tr>
+                <td colspan="6" class="text-center">
+                  <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Carregando...</span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-5">
+    <!-- Detalhes do Resultado -->
+    <div class="card">
+      <div class="card-header bg-info text-white">
+        <h5 class="card-title mb-0">
+          <i class="fas fa-info-circle me-2"></i>
+          Detalhes da Montagem
+        </h5>
+      </div>
+      <div class="card-body">
+        <div id="assembly-details-placeholder">
+          <div class="text-center py-5">
+            <i class="fas fa-chart-pie fa-3x text-muted mb-3"></i>
+            <p class="lead text-muted">
+              Selecione uma montagem para ver os detalhes
+            </p>
+          </div>
+        </div>
+
+        <div id="assembly-details" class="d-none">
+          <h6 class="border-bottom pb-2">Estatísticas Gerais</h6>
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <div class="card bg-light">
+                <div class="card-body p-2 text-center">
+                  <h6 class="card-title text-primary mb-0">Contigs</h6>
+                  <h3 id="stats-contigs" class="mb-0">-</h3>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card bg-light">
+                <div class="card-body p-2 text-center">
+                  <h6 class="card-title text-primary mb-0">Tamanho Total</h6>
+                  <h3 id="stats-length" class="mb-0">-</h3>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <div class="card bg-light">
+                <div class="card-body p-2 text-center">
+                  <h6 class="card-title text-primary mb-0">N50</h6>
+                  <h3 id="stats-n50" class="mb-0">-</h3>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card bg-light">
+                <div class="card-body p-2 text-center">
+                  <h6 class="card-title text-primary mb-0">GC%</h6>
+                  <h3 id="stats-gc" class="mb-0">-</h3>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <h6 class="border-bottom pb-2">Informações</h6>
+          <ul class="list-group list-group-flush mb-3">
+            <li class="list-group-item d-flex justify-content-between">
+              <span>Contig mais longo:</span>
+              <span id="stats-longest" class="fw-bold">-</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between">
+              <span>Modo SPAdes:</span>
+              <span id="stats-mode" class="fw-bold">-</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between">
+              <span>Versão SPAdes:</span>
+              <span id="stats-version" class="fw-bold">-</span>
+            </li>
+          </ul>
+
+          <div class="d-grid gap-2">
+            <button
+              type="button"
+              class="btn btn-outline-primary"
+              id="btn-view-cmd"
+            >
+              <i class="fas fa-terminal me-1"></i>
+              Ver Comando SPAdes
+            </button>
+            <button
+              type="button"
+              class="btn btn-outline-info"
+              id="btn-download-report"
+            >
+              <i class="fas fa-file-download me-1"></i>
+              Baixar Relatório
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-7">
+    <!-- Arquivos -->
+    <div class="card">
+      <div
+        class="card-header bg-success text-white d-flex justify-content-between align-items-center"
+      >
+        <h5 class="card-title mb-0">
+          <i class="fas fa-file-alt me-2"></i>
+          Arquivos da Montagem
+        </h5>
+        <div class="btn-group">
+          <button
+            type="button"
+            class="btn btn-sm btn-light"
+            id="btn-download-all-files"
+            disabled
+          >
+            <i class="fas fa-download me-1"></i>
+            Baixar Todos
+          </button>
+          <button
+            type="button"
+            class="btn btn-sm btn-danger"
+            id="btn-delete-assembly"
+            disabled
+          >
+            <i class="fas fa-trash-alt me-1"></i>
+            Excluir
+          </button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div id="files-placeholder">
+          <div class="text-center py-5">
+            <i class="fas fa-file-code fa-3x text-muted mb-3"></i>
+            <p class="lead text-muted">
+              Selecione uma montagem para ver os arquivos
+            </p>
+          </div>
+        </div>
+
+        <div id="files-list" class="d-none">
+          <ul class="nav nav-tabs" id="filesTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link active"
+                id="main-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#main-files"
+                type="button"
+                role="tab"
+              >
+                Principais
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link"
+                id="all-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#all-files"
+                type="button"
+                role="tab"
+              >
+                Todos os Arquivos
+              </button>
+            </li>
+          </ul>
+
+          <div class="tab-content pt-3" id="filesTabContent">
+            <!-- Arquivos Principais -->
+            <div
+              class="tab-pane fade show active"
+              id="main-files"
+              role="tabpanel"
+              aria-labelledby="main-tab"
+            >
+              <div class="table-responsive">
+                <table class="table table-hover">
+                  <thead>
+                    <tr>
+                      <th>Arquivo</th>
+                      <th>Tamanho</th>
+                      <th>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody id="main-files-body"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Todos os Arquivos -->
+            <div
+              class="tab-pane fade"
+              id="all-files"
+              role="tabpanel"
+              aria-labelledby="all-tab"
+            >
+              <div class="table-responsive">
+                <table class="table table-hover table-sm">
+                  <thead>
+                    <tr>
+                      <th>Arquivo</th>
+                      <th>Tamanho</th>
+                      <th>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody id="all-files-body"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Visualização de Arquivo -->
+<div
+  class="modal fade"
+  id="fileViewModal"
+  tabindex="-1"
+  aria-labelledby="fileViewModalLabel"
+  aria-hidden="true"
+>
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="fileViewModalLabel">Visualizar Arquivo</h5>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+          aria-label="Fechar"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <div class="d-flex justify-content-between">
+            <span class="badge bg-primary" id="file-view-type">text/plain</span>
+            <span class="badge bg-secondary" id="file-view-size">0 B</span>
+          </div>
+        </div>
+        <div id="file-content-wrapper" class="border p-2 bg-light">
+          <pre id="file-content" class="m-0"></pre>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          Fechar
+        </button>
+        <button
+          type="button"
+          class="btn btn-primary"
+          id="btn-download-viewed-file"
+        >
+          <i class="fas fa-download me-1"></i>
+          Baixar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Comando SPAdes -->
+<div
+  class="modal fade"
+  id="cmdModal"
+  tabindex="-1"
+  aria-labelledby="cmdModalLabel"
+  aria-hidden="true"
+>
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-dark text-white">
+        <h5 class="modal-title" id="cmdModalLabel">Comando SPAdes</h5>
+        <button
+          type="button"
+          class="btn-close btn-close-white"
+          data-bs-dismiss="modal"
+          aria-label="Fechar"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle me-2"></i>
+          Este é o comando SPAdes que foi utilizado para esta montagem.
+        </div>
+        <div class="border bg-dark text-light p-3 rounded">
+          <code id="spades-command" class="d-block"></code>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          Fechar
+        </button>
+        <button type="button" class="btn btn-primary" id="btn-copy-cmd">
+          <i class="fas fa-copy me-1"></i>
+          Copiar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Confirmação de Exclusão -->
+<div
+  class="modal fade"
+  id="deleteModal"
+  tabindex="-1"
+  aria-labelledby="deleteModalLabel"
+  aria-hidden="true"
+>
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title" id="deleteModalLabel">Confirmar Exclusão</h5>
+        <button
+          type="button"
+          class="btn-close btn-close-white"
+          data-bs-dismiss="modal"
+          aria-label="Fechar"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <p>
+          Tem certeza que deseja excluir a montagem
+          <strong id="delete-assembly-name"></strong>?
+        </p>
+        <div class="alert alert-warning">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          Esta ação não pode ser desfeita e todos os arquivos relacionados serão
+          removidos permanentemente.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          Cancelar
+        </button>
+        <button type="button" class="btn btn-danger" id="btn-confirm-delete">
+          <i class="fas fa-trash-alt me-1"></i>
+          Excluir Permanentemente
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block extra_js %}
+<script src="{{ url_for('static', filename='js/results.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,232 @@
+{% extends "base.html" %} {% block title %}SPAdes Master - Dashboard{% endblock
+%} {% block content %}
+<div class="row mb-4">
+  <div class="col-md-12">
+    <div class="card">
+      <div class="card-header bg-primary text-white">
+        <h5 class="card-title mb-0">
+          <i class="fas fa-home me-2"></i>
+          Bem-vindo ao SPAdes Master Web
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-8">
+            <h4>Plataforma de Gerenciamento para Montagens com SPAdes</h4>
+            <p class="lead">
+              SPAdes Master Web permite gerenciar montagens genômicas utilizando
+              o
+              <a href="https://github.com/ablab/spades" target="_blank"
+                >SPAdes</a
+              >
+              (St. Petersburg genome assembler) em servidores remotos através de
+              uma interface web moderna.
+            </p>
+            <hr />
+            <h5>Como utilizar:</h5>
+            <ol class="list-group list-group-numbered mb-3">
+              <li class="list-group-item d-flex">
+                <div>
+                  <strong>Configurar um perfil de servidor</strong>
+                  <p class="mb-0">
+                    Acesse a seção
+                    <a href="/profiles">Perfis de Servidor</a> para adicionar as
+                    informações de conexão.
+                  </p>
+                </div>
+              </li>
+              <li class="list-group-item d-flex">
+                <div>
+                  <strong>Executar o SPAdes</strong>
+                  <p class="mb-0">
+                    Vá para a seção <a href="/execution">Execução</a> para
+                    enviar arquivos e iniciar a montagem.
+                  </p>
+                </div>
+              </li>
+              <li class="list-group-item d-flex">
+                <div>
+                  <strong>Visualizar resultados</strong>
+                  <p class="mb-0">
+                    Na seção <a href="/results">Resultados</a> você pode baixar
+                    e analisar os dados da montagem.
+                  </p>
+                </div>
+              </li>
+            </ol>
+          </div>
+          <div class="col-md-4">
+            <div class="card border-primary">
+              <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">Acesso Rápido</h5>
+              </div>
+              <div class="card-body">
+                <div class="d-grid gap-3">
+                  <a href="/profiles" class="btn btn-outline-primary">
+                    <i class="fas fa-server me-2"></i>
+                    Gerenciar Perfis
+                  </a>
+                  <a href="/execution" class="btn btn-outline-success">
+                    <i class="fas fa-play-circle me-2"></i>
+                    Nova Montagem
+                  </a>
+                  <a href="/results" class="btn btn-outline-info">
+                    <i class="fas fa-chart-bar me-2"></i>
+                    Ver Resultados
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <div class="card mt-3">
+              <div class="card-header bg-light">
+                <h5 class="card-title mb-0">Status do Sistema</h5>
+              </div>
+              <div class="card-body">
+                <ul class="list-group list-group-flush" id="system-status">
+                  <li
+                    class="list-group-item d-flex justify-content-between align-items-center"
+                  >
+                    API
+                    <span class="badge bg-secondary" id="api-status"
+                      >Verificando...</span
+                    >
+                  </li>
+                  <li
+                    class="list-group-item d-flex justify-content-between align-items-center"
+                  >
+                    WebSocket
+                    <span class="badge bg-secondary" id="socket-status"
+                      >Verificando...</span
+                    >
+                  </li>
+                  <li
+                    class="list-group-item d-flex justify-content-between align-items-center"
+                  >
+                    Conexão SSH
+                    <span class="badge bg-danger" id="ssh-status"
+                      >Desconectado</span
+                    >
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header bg-info text-white">
+        <h5 class="card-title mb-0">
+          <i class="fas fa-info-circle me-2"></i>
+          Sobre o SPAdes
+        </h5>
+      </div>
+      <div class="card-body">
+        <p>
+          SPAdes (St. Petersburg genome assembler) é um montador de genoma
+          desenvolvido pelo Centro de Algoritmos Bioinformáticos da Universidade
+          de São Petersburgo.
+        </p>
+
+        <h6 class="mt-3">Características:</h6>
+        <ul>
+          <li>
+            Montagem de genomas de novo a partir de sequências curtas (Illumina)
+            e longas (PacBio, ONT)
+          </li>
+          <li>Correção de erros integrada</li>
+          <li>
+            Modos especializados: isolado, meta, plasmídeo, RNA, célula única
+          </li>
+          <li>Utiliza grafos de De Bruijn com múltiplos k-mers</li>
+        </ul>
+
+        <h6 class="mt-3">Opções comuns:</h6>
+        <ul>
+          <li><code>-1, -2</code>: Arquivos de leituras paired-end</li>
+          <li><code>-t</code>: Número de threads</li>
+          <li><code>-m</code>: Memória máxima (GB)</li>
+          <li><code>-k</code>: Valores de k-mer</li>
+          <li><code>--careful</code>: Reduz número de misassemblies</li>
+          <li><code>--isolate, --meta, etc.</code>: Modos de execução</li>
+        </ul>
+
+        <div class="mt-3 text-center">
+          <a
+            href="http://cab.spbu.ru/software/spades/"
+            target="_blank"
+            class="btn btn-outline-primary"
+          >
+            <i class="fas fa-external-link-alt me-1"></i>
+            Mais informações
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header bg-success text-white">
+        <h5 class="card-title mb-0">
+          <i class="fas fa-tasks me-2"></i>
+          Resumo de Atividades
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <h6>Perfis de Servidor</h6>
+          <div class="progress">
+            <div
+              class="progress-bar bg-primary"
+              role="progressbar"
+              id="profiles-progress"
+              style="width: 0%"
+            >
+              0
+            </div>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <h6>Jobs Recentes</h6>
+          <ul class="list-group list-group-flush" id="recent-jobs">
+            <li class="list-group-item text-center text-muted">
+              Nenhum job recente
+            </li>
+          </ul>
+        </div>
+
+        <div class="mb-3">
+          <h6>Resultados Disponíveis</h6>
+          <div class="progress">
+            <div
+              class="progress-bar bg-success"
+              role="progressbar"
+              id="results-progress"
+              style="width: 0%"
+            >
+              0
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-4 text-center" id="current-job-status">
+          <div class="alert alert-secondary">
+            <i class="fas fa-info-circle me-2"></i>
+            Nenhum job em execução no momento
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block extra_js %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

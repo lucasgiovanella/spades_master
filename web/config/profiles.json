@@ -1,0 +1,18 @@
+{
+  "teste": {
+    "host": "192.168.0.42",
+    "port": "",
+    "username": "spades",
+    "password": "Sp@des",
+    "key_path": "",
+    "use_key": false
+  },
+  "rebel": {
+    "host": "192.168.0.42",
+    "port": "",
+    "username": "spades",
+    "password": "Sp@des",
+    "key_path": "",
+    "use_key": false
+  }
+}

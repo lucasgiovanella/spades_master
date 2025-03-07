@@ -1,0 +1,795 @@
+{% extends "base.html" %} {% block title %}SPAdes Master - Execução e
+Monitoramento{% endblock %} {% block content %}
+<div class="row">
+  <!-- Configuração e Controle -->
+  <div class="col-md-5">
+    <div class="card mb-4">
+      <div class="card-header bg-primary text-white">
+        <h5 class="card-title mb-0">
+          <i class="fas fa-cogs me-2"></i>
+          Configuração e Execução
+        </h5>
+      </div>
+      <div class="card-body">
+        <!-- Seleção de Servidor -->
+        <div class="mb-3">
+          <label for="server-profile" class="form-label"
+            >Perfil do Servidor</label
+          >
+          <div class="input-group">
+            <select class="form-select" id="server-profile">
+              <option value="" selected>
+                Selecione um perfil de servidor...
+              </option>
+            </select>
+            <button
+              class="btn btn-outline-primary"
+              type="button"
+              id="btn-connect"
+            >
+              <i class="fas fa-plug me-1"></i>
+              Conectar
+            </button>
+          </div>
+          <div id="server-status" class="form-text text-muted">
+            Status: Desconectado
+          </div>
+        </div>
+
+        <!-- Informações do Servidor -->
+        <div id="server-info" class="d-none mb-3">
+          <label class="form-label">Informações do Servidor</label>
+          <div class="card">
+            <ul class="list-group list-group-flush">
+              <li class="list-group-item d-flex justify-content-between">
+                <span>CPUs:</span>
+                <span id="info-cpu" class="fw-bold">-</span>
+              </li>
+              <li class="list-group-item d-flex justify-content-between">
+                <span>Memória:</span>
+                <span id="info-memory" class="fw-bold">-</span>
+              </li>
+              <li class="list-group-item d-flex justify-content-between">
+                <span>SPAdes:</span>
+                <span id="info-spades" class="fw-bold">-</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Arquivos de Entrada -->
+        <div class="mb-3">
+          <label class="form-label">Arquivos de Entrada</label>
+          <div class="card">
+            <div class="card-body">
+              <form id="files-form">
+                <div class="mb-3">
+                  <label for="read-files" class="form-label"
+                    >Arquivos de Leitura (FASTQ)</label
+                  >
+                  <input
+                    class="form-control"
+                    type="file"
+                    id="read-files"
+                    multiple
+                    accept=".fastq,.fq,.fastq.gz,.fq.gz"
+                  />
+                  <div class="form-text">
+                    Selecione os arquivos paired-end (R1 e R2)
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="col">
+                    <label for="remote-dir" class="form-label"
+                      >Diretório Remoto</label
+                    >
+                    <input
+                      type="text"
+                      class="form-control"
+                      id="remote-dir"
+                      value="/tmp/spades_jobs"
+                    />
+                  </div>
+                  <div class="col">
+                    <label for="output-dir" class="form-label"
+                      >Pasta de Saída</label
+                    >
+                    <input
+                      type="text"
+                      class="form-control"
+                      id="output-dir"
+                      value="assembly"
+                    />
+                  </div>
+                </div>
+                <div class="mt-3 d-grid">
+                  <button
+                    type="button"
+                    class="btn btn-primary"
+                    id="btn-upload-files"
+                    disabled
+                  >
+                    <i class="fas fa-upload me-1"></i>
+                    Preparar e Enviar Arquivos
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Parâmetros do SPAdes -->
+        <div class="mb-3">
+          <label class="form-label">Parâmetros do SPAdes</label>
+          <div class="card">
+            <div class="card-body">
+              <form id="params-form">
+                <div class="row mb-3">
+                  <div class="col">
+                    <label for="threads" class="form-label">Threads</label>
+                    <input
+                      type="number"
+                      class="form-control"
+                      id="threads"
+                      value="8"
+                      min="1"
+                    />
+                  </div>
+                  <div class="col">
+                    <label for="memory" class="form-label">Memória (GB)</label>
+                    <input
+                      type="number"
+                      class="form-control"
+                      id="memory"
+                      min="1"
+                      placeholder="Auto"
+                    />
+                  </div>
+                </div>
+                <div class="row mb-3">
+                  <div class="col">
+                    <label for="mode" class="form-label">Modo</label>
+                    <select class="form-select" id="mode">
+                      <option value="isolate" selected>isolate (padrão)</option>
+                      <option value="careful">careful</option>
+                      <option value="meta">meta</option>
+                      <option value="rna">rna</option>
+                      <option value="plasmid">plasmid</option>
+                      <option value="metaviral">metaviral</option>
+                      <option value="metaplasmid">metaplasmid</option>
+                      <option value="bio">bio</option>
+                      <option value="corona">corona</option>
+                    </select>
+                  </div>
+                  <div class="col">
+                    <label for="kmer" class="form-label"
+                      >K-mers (opcional)</label
+                    >
+                    <input
+                      type="text"
+                      class="form-control"
+                      id="kmer"
+                      placeholder="ex: 21,33,55,77"
+                    />
+                  </div>
+                </div>
+                <div class="mt-1">
+                  <button
+                    type="button"
+                    class="btn btn-secondary"
+                    id="btn-advanced-params"
+                  >
+                    <i class="fas fa-sliders-h me-1"></i>
+                    Parâmetros Avançados
+                  </button>
+                </div>
+              </form>
+            </div>
+            <div class="card-footer">
+              <div class="d-grid">
+                <button
+                  type="button"
+                  class="btn btn-success"
+                  id="btn-run-spades"
+                  disabled
+                >
+                  <i class="fas fa-play-circle me-1"></i>
+                  Executar SPAdes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-header bg-danger text-white">
+        <h5 class="card-title mb-0">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          Controle de Emergência
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <button
+              type="button"
+              class="btn btn-danger w-100"
+              id="btn-cancel-job"
+              disabled
+            >
+              <i class="fas fa-stop-circle me-1"></i>
+              Cancelar Job
+            </button>
+          </div>
+          <div class="col-md-6">
+            <button
+              type="button"
+              class="btn btn-warning w-100"
+              id="btn-open-terminal"
+              disabled
+            >
+              <i class="fas fa-terminal me-1"></i>
+              Terminal SSH
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Monitoramento e Log -->
+  <div class="col-md-7">
+    <div class="card mb-4">
+      <div class="card-header bg-info text-white">
+        <h5 class="card-title mb-0">
+          <i class="fas fa-chart-line me-2"></i>
+          Monitoramento em Tempo Real
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="alert alert-secondary" id="job-status">
+          Nenhum job em execução
+        </div>
+
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-header bg-light">
+                <h6 class="card-title mb-0">Progresso</h6>
+              </div>
+              <div class="card-body">
+                <p class="text-center mb-2" id="phase-text">Aguardando</p>
+                <div class="progress mb-3">
+                  <div
+                    class="progress-bar progress-bar-striped progress-bar-animated"
+                    role="progressbar"
+                    style="width: 0%"
+                    id="progress-bar"
+                  >
+                    0%
+                  </div>
+                </div>
+                <div class="d-flex justify-content-between">
+                  <span>Tempo: <span id="elapsed-time">00:00:00</span></span>
+                  <span id="job-pid"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-header bg-light">
+                <h6 class="card-title mb-0">Recursos</h6>
+              </div>
+              <div class="card-body">
+                <div class="d-flex justify-content-between mb-1">
+                  <span>CPU:</span>
+                  <span id="cpu-usage">0%</span>
+                </div>
+                <div class="progress mb-3" style="height: 10px">
+                  <div
+                    class="progress-bar bg-primary"
+                    role="progressbar"
+                    style="width: 0%"
+                    id="cpu-bar"
+                  ></div>
+                </div>
+
+                <div class="d-flex justify-content-between mb-1">
+                  <span>Memória:</span>
+                  <span id="memory-usage">0 MB</span>
+                </div>
+                <div class="progress" style="height: 10px">
+                  <div
+                    class="progress-bar bg-success"
+                    role="progressbar"
+                    style="width: 0%"
+                    id="memory-bar"
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div
+            class="card-header d-flex justify-content-between align-items-center"
+          >
+            <h6 class="card-title mb-0">Log de Execução</h6>
+            <div class="btn-group btn-group-sm">
+              <button
+                type="button"
+                class="btn btn-outline-secondary"
+                id="btn-clear-log"
+              >
+                <i class="fas fa-eraser"></i>
+              </button>
+              <button
+                type="button"
+                class="btn btn-outline-secondary"
+                id="btn-save-log"
+              >
+                <i class="fas fa-save"></i>
+              </button>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <div id="log-container" class="log-container">
+              <div id="log-content"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header bg-success text-white">
+        <h5 class="card-title mb-0">
+          <i class="fas fa-check-circle me-2"></i>
+          Resultados
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="alert alert-secondary" id="results-status">
+          Aguardando conclusão da montagem
+        </div>
+
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <button
+              type="button"
+              class="btn btn-primary w-100"
+              id="btn-download-important"
+              disabled
+            >
+              <i class="fas fa-download me-1"></i>
+              Baixar Arquivos Importantes
+            </button>
+          </div>
+          <div class="col-md-6">
+            <button
+              type="button"
+              class="btn btn-outline-primary w-100"
+              id="btn-download-all"
+              disabled
+            >
+              <i class="fas fa-download me-1"></i>
+              Baixar Todos os Arquivos
+            </button>
+          </div>
+        </div>
+
+        <div class="d-grid">
+          <a href="/results" class="btn btn-info" id="btn-go-results">
+            <i class="fas fa-chart-bar me-1"></i>
+            Ver Todos os Resultados
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Parâmetros Avançados -->
+<div
+  class="modal fade"
+  id="advancedParamsModal"
+  tabindex="-1"
+  aria-labelledby="advancedParamsModalLabel"
+  aria-hidden="true"
+>
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title" id="advancedParamsModalLabel">
+          Parâmetros Avançados do SPAdes
+        </h5>
+        <button
+          type="button"
+          class="btn-close btn-close-white"
+          data-bs-dismiss="modal"
+          aria-label="Fechar"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <form id="advanced-params-form">
+          <ul class="nav nav-tabs" id="paramsTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link active"
+                id="basic-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#basic-pane"
+                type="button"
+                role="tab"
+              >
+                Básico
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link"
+                id="quality-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#quality-pane"
+                type="button"
+                role="tab"
+              >
+                Qualidade
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link"
+                id="pipeline-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#pipeline-pane"
+                type="button"
+                role="tab"
+              >
+                Pipeline
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link"
+                id="help-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#help-pane"
+                type="button"
+                role="tab"
+              >
+                Ajuda
+              </button>
+            </li>
+          </ul>
+          <div class="tab-content p-3" id="paramsTabContent">
+            <!-- Aba Básica -->
+            <div
+              class="tab-pane fade show active"
+              id="basic-pane"
+              role="tabpanel"
+              aria-labelledby="basic-tab"
+            >
+              <div class="mb-3">
+                <label for="advanced-mode" class="form-label"
+                  >Modo de montagem:</label
+                >
+                <select class="form-select" id="advanced-mode">
+                  <option value="isolate">isolate (padrão)</option>
+                  <option value="careful">careful</option>
+                  <option value="meta">meta</option>
+                  <option value="rna">rna</option>
+                  <option value="plasmid">plasmid</option>
+                  <option value="metaviral">metaviral</option>
+                  <option value="metaplasmid">metaplasmid</option>
+                  <option value="bio">bio</option>
+                  <option value="corona">corona</option>
+                </select>
+                <div class="form-text">
+                  Modo recomendado para o tipo de amostra
+                </div>
+              </div>
+              <div class="row mb-3">
+                <div class="col-md-6">
+                  <label for="advanced-threads" class="form-label"
+                    >Threads:</label
+                  >
+                  <input
+                    type="number"
+                    class="form-control"
+                    id="advanced-threads"
+                    value="8"
+                    min="1"
+                  />
+                  <div class="form-text">
+                    Número de threads para processamento paralelo
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <label for="advanced-memory" class="form-label"
+                    >Memória (GB):</label
+                  >
+                  <input
+                    type="number"
+                    class="form-control"
+                    id="advanced-memory"
+                    min="1"
+                    placeholder="Auto"
+                  />
+                  <div class="form-text">
+                    Limite de memória RAM em gigabytes
+                  </div>
+                </div>
+              </div>
+              <div class="mb-3">
+                <label for="advanced-kmer" class="form-label">K-mers:</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="advanced-kmer"
+                  placeholder="ex: 21,33,55,77"
+                />
+                <div class="form-text">
+                  Lista de k-mers separados por vírgula (ex: 21,33,55)
+                </div>
+              </div>
+              <div class="form-check mb-3">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  id="advanced-careful"
+                />
+                <label class="form-check-label" for="advanced-careful">
+                  Modo Careful
+                </label>
+                <div class="form-text">
+                  Reduz o número de erros de montagem (mais lento)
+                </div>
+              </div>
+            </div>
+
+            <!-- Aba Qualidade -->
+            <div
+              class="tab-pane fade"
+              id="quality-pane"
+              role="tabpanel"
+              aria-labelledby="quality-tab"
+            >
+              <div class="mb-3">
+                <label for="cov-cutoff" class="form-label"
+                  >Cutoff de cobertura:</label
+                >
+                <div class="form-group">
+                  <div class="form-check mb-2">
+                    <input
+                      class="form-check-input"
+                      type="radio"
+                      name="cov_cutoff"
+                      id="cov-auto"
+                      value="auto"
+                      checked
+                    />
+                    <label class="form-check-label" for="cov-auto">
+                      Auto (recomendado)
+                    </label>
+                  </div>
+                  <div class="form-check mb-2">
+                    <input
+                      class="form-check-input"
+                      type="radio"
+                      name="cov_cutoff"
+                      id="cov-off"
+                      value="off"
+                    />
+                    <label class="form-check-label" for="cov-off">
+                      Desativado
+                    </label>
+                  </div>
+                  <div class="form-check mb-2">
+                    <input
+                      class="form-check-input"
+                      type="radio"
+                      name="cov_cutoff"
+                      id="cov-custom"
+                      value="custom"
+                    />
+                    <label class="form-check-label" for="cov-custom">
+                      Personalizado:
+                    </label>
+                    <input
+                      type="number"
+                      class="form-control mt-1"
+                      id="cov-custom-value"
+                      placeholder="Valor"
+                      disabled
+                    />
+                  </div>
+                </div>
+                <div class="form-text">
+                  Controla a filtragem de contigs de baixa cobertura
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label for="phred-offset" class="form-label"
+                  >Offset de qualidade Phred:</label
+                >
+                <div class="form-group">
+                  <div class="form-check mb-2">
+                    <input
+                      class="form-check-input"
+                      type="radio"
+                      name="phred_offset"
+                      id="phred-auto"
+                      value="auto"
+                      checked
+                    />
+                    <label class="form-check-label" for="phred-auto">
+                      Auto (recomendado)
+                    </label>
+                  </div>
+                  <div class="form-check mb-2">
+                    <input
+                      class="form-check-input"
+                      type="radio"
+                      name="phred_offset"
+                      id="phred-33"
+                      value="33"
+                    />
+                    <label class="form-check-label" for="phred-33">
+                      33 (Illumina 1.8+, Sanger)
+                    </label>
+                  </div>
+                  <div class="form-check mb-2">
+                    <input
+                      class="form-check-input"
+                      type="radio"
+                      name="phred_offset"
+                      id="phred-64"
+                      value="64"
+                    />
+                    <label class="form-check-label" for="phred-64">
+                      64 (Illumina 1.3-1.7)
+                    </label>
+                  </div>
+                </div>
+                <div class="form-text">
+                  Formato da qualidade nos arquivos FASTQ
+                </div>
+              </div>
+            </div>
+
+            <!-- Aba Pipeline -->
+            <div
+              class="tab-pane fade"
+              id="pipeline-pane"
+              role="tabpanel"
+              aria-labelledby="pipeline-tab"
+            >
+              <div class="mb-3">
+                <label class="form-label">Opções de Pipeline:</label>
+                <div class="form-check mb-2">
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    id="only-error-correction"
+                  />
+                  <label class="form-check-label" for="only-error-correction">
+                    Apenas correção de erros (não realizar montagem)
+                  </label>
+                </div>
+                <div class="form-check mb-2">
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    id="only-assembler"
+                  />
+                  <label class="form-check-label" for="only-assembler">
+                    Apenas montagem (pular correção de erros)
+                  </label>
+                </div>
+                <div class="alert alert-warning">
+                  <i class="fas fa-exclamation-triangle me-2"></i>
+                  As opções acima são mutuamente exclusivas.
+                </div>
+              </div>
+            </div>
+
+            <!-- Aba Ajuda -->
+            <div
+              class="tab-pane fade"
+              id="help-pane"
+              role="tabpanel"
+              aria-labelledby="help-tab"
+            >
+              <div class="alert alert-info mb-3">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>SPAdes Help</strong>
+              </div>
+              <p>
+                SPAdes (St. Petersburg genome assembler) é um montador de genoma
+                desenvolvido pelo Centro de Algoritmos Bioinformáticos da
+                Universidade de São Petersburgo.
+              </p>
+
+              <h6 class="mt-3">Recomendações gerais:</h6>
+              <ol>
+                <li>
+                  <strong>Escolha do modo:</strong>
+                  <ul>
+                    <li>
+                      Para bactérias isoladas: use o modo 'isolate' ou 'careful'
+                    </li>
+                    <li>Para metagenomas: use o modo 'meta'</li>
+                    <li>Para transcriptomas: use o modo 'rna'</li>
+                    <li>Para plasmídeos: use o modo 'plasmid'</li>
+                    <li>
+                      Para vírus da família Coronaviridae: use o modo 'corona'
+                    </li>
+                  </ul>
+                </li>
+                <li>
+                  <strong>Recursos de hardware:</strong>
+                  <ul>
+                    <li>
+                      Threads: Defina com base no número de núcleos disponíveis
+                    </li>
+                    <li>
+                      Memória: Para um genoma bacteriano típico, 16GB são
+                      suficientes
+                    </li>
+                    <li>
+                      Para montagens grandes/complexas, aumente a quantidade de
+                      memória
+                    </li>
+                  </ul>
+                </li>
+                <li>
+                  <strong>K-mers:</strong>
+                  <ul>
+                    <li>
+                      Para reads curtos (Illumina), valores comuns são 21, 33,
+                      55, 77
+                    </li>
+                    <li>
+                      Para reads longos (PacBio/ONT), valores maiores são
+                      recomendados
+                    </li>
+                    <li>
+                      Deixar em branco para usar os valores padrão do SPAdes
+                    </li>
+                  </ul>
+                </li>
+              </ol>
+
+              <p>
+                Para mais informações, consulte o
+                <a
+                  href="http://cab.spbu.ru/files/release3.15.5/manual.html"
+                  target="_blank"
+                  >manual oficial do SPAdes</a
+                >.
+              </p>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          Cancelar
+        </button>
+        <button type="button" class="btn btn-primary" id="btn-apply-params">
+          <i class="fas fa-check me-1"></i>
+          Aplicar Parâmetros
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block extra_js %}
+<script src="{{ url_for('static', filename='js/execution.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% block title %}SPAdes Master - Perfis de Servidor{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2 class="mb-0">
+                    <i class="fas fa-server me-2"></i>
+                    Perfis de Servidor
+                </h2>
+                <button class="btn btn-primary" id="btn-add-profile">
+                    <i class="fas fa-plus me-1"></i>
+                    Adicionar Perfil
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profiles Table -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Host</th>
+                            <th>Usuário</th>
+                            <th>Autenticação</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="profiles-table-body">
+                        <tr>
+                            <td colspan="6" class="text-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Carregando...</span>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Profile Modal -->
+<div class="modal fade" id="profileModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="profileModalLabel">Adicionar Perfil</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="profile-form">
+                    <input type="hidden" id="profile-id">
+                    
+                    <div class="mb-3">
+                        <label for="profile-name" class="form-label">Nome do Perfil</label>
+                        <input type="text" class="form-control" id="profile-name" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="profile-host" class="form-label">Host</label>
+                        <input type="text" class="form-control" id="profile-host" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="profile-port" class="form-label">Porta</label>
+                        <input type="text" class="form-control" id="profile-port" value="22">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="profile-username" class="form-label">Usuário</label>
+                        <input type="text" class="form-control" id="profile-username" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Método de Autenticação</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="auth-method" id="auth-password" checked>
+                            <label class="form-check-label" for="auth-password">Senha</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="auth-method" id="auth-key">
+                            <label class="form-check-label" for="auth-key">Chave SSH</label>
+                        </div>
+                    </div>
+                    
+                    <div id="password-section" class="mb-3">
+                        <label for="profile-password" class="form-label">Senha</label>
+                        <input type="password" class="form-control" id="profile-password">
+                    </div>
+                    
+                    <div id="key-section" class="mb-3" style="display: none;">
+                        <label for="profile-key-path" class="form-label">Caminho da Chave SSH</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="profile-key-path">
+                            <button class="btn btn-outline-secondary" type="button" id="btn-browse-key">
+                                <i class="fas fa-folder-open"></i>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btn-test-connection">
+                    <i class="fas fa-plug me-1"></i> Testar Conexão
+                </button>
+                <button type="button" class="btn btn-success" id="btn-save-profile">
+                    <i class="fas fa-save me-1"></i> Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm Delete Modal -->
+<div class="modal fade" id="confirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Deseja realmente excluir o perfil <strong id="confirm-profile-name"></strong>?</p>
+                <p class="text-danger mb-0">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    Esta ação não pode ser desfeita.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="btn-confirm-delete">
+                    <i class="fas fa-trash me-1"></i> Excluir
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Server Info Modal -->
+<div class="modal fade" id="serverInfoModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Informações do Servidor</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <h6>Recursos do Sistema</h6>
+                <ul class="list-group mb-3">
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>CPU</span>
+                        <span id="server-cpu" class="text-muted">-</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>Memória Total</span>
+                        <span id="server-memory" class="text-muted">-</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>Memória Livre</span>
+                        <span id="server-free-memory" class="text-muted">-</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>Disco</span>
+                        <span id="server-disk" class="text-muted">-</span>
+                    </li>
+                </ul>
+                
+                <h6>SPAdes</h6>
+                <div id="spades-status-container" class="alert alert-secondary">
+                    <i class="fas fa-spinner fa-spin me-1"></i>
+                    Verificando instalação do SPAdes...
+                </div>
+                <div id="spades-path-container" class="input-group" style="display: none;">
+                    <input type="text" class="form-control" id="spades-path" readonly>
+                    <button class="btn btn-outline-secondary" type="button" id="btn-copy-path">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Socket.IO -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+
+<!-- Utility Functions -->
+<script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+
+<!-- Custom JS -->
+<script src="{{ url_for('static', filename='js/profiles.js') }}"></script>
+{% endblock %}
