@@ -16,6 +16,11 @@ class ConfigFrame(ttk.Frame):
         self.server_profiles = server_profiles
         self.status_updater = status_updater
         
+        # Initialize responsive UI attribute
+        self.responsive_ui = None
+        if hasattr(parent.master, 'responsive_ui'):
+            self.responsive_ui = parent.master.responsive_ui
+        
         # Variáveis para conexão
         self.selected_profile = tk.StringVar()
         self.server_host = tk.StringVar()
@@ -132,8 +137,10 @@ class ConfigFrame(ttk.Frame):
     
     def _create_files_frame(self):
         """Cria frame de arquivos"""
-        files_frame = ttk.LabelFrame(self, text="Arquivos de Entrada")
-        files_frame.pack(fill="x", padx=10, pady=5)
+        padding = self.responsive_ui.get_padding() if self.responsive_ui else 10
+        
+        files_frame = ttk.LabelFrame(self, text="Arquivos de Entrada", style='Card.TFrame')
+        files_frame.pack(fill="x", padx=padding, pady=padding//2)
         
         # Grid para organizar widgets
         files_frame.columnconfigure(1, weight=1)

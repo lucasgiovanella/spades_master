@@ -57,7 +57,7 @@ class StatusUpdater:
                 
                 if msg_type == "status":
                     self.status_var.set(msg)
-                elif msg_type == "log":
+                elif msg_type == "log" and self.log_text is not None:
                     self.log_text.configure(state='normal')
                     
                     # Aplicar cores com base no nível de log

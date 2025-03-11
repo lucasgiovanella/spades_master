@@ -5,6 +5,7 @@ import tkinter as tk
 from tkinter import ttk
 import os
 import re
+from ui.styles import ResponsiveUI
 
 class ResultsFrame(ttk.Frame):
     """Frame para visualizar e gerenciar resultados"""
@@ -21,13 +22,19 @@ class ResultsFrame(ttk.Frame):
         
     def _create_widgets(self):
         """Cria os widgets do frame de resultados"""
+        # Obter a instância de ResponsiveUI do aplicativo principal
+        self.responsive_ui = self.parent.master.responsive_ui if hasattr(self.parent, 'master') and hasattr(self.parent.master, 'responsive_ui') else None
+        
+        # Definir padding responsivo
+        padding = self.responsive_ui.get_padding() if self.responsive_ui else 10
+        
         # Botões para operações de resultados
-        button_frame = ttk.Frame(self)
-        button_frame.pack(fill=tk.X, padx=5, pady=5)
+        button_frame = ttk.Frame(self, style='Card.TFrame')
+        button_frame.pack(fill=tk.X, padx=padding, pady=padding//2)
         
         # Opções de download
-        download_frame = ttk.LabelFrame(button_frame, text="Opções de Download")
-        download_frame.grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
+        download_frame = ttk.LabelFrame(button_frame, text="Opções de Download", style='Card.TFrame')
+        download_frame.grid(row=0, column=0, padx=padding//2, pady=padding//2, sticky=tk.W)
         
         # Botão para baixar apenas arquivos importantes
         ttk.Button(
@@ -44,15 +51,16 @@ class ResultsFrame(ttk.Frame):
         ).grid(row=0, column=1, padx=5, pady=5)
         
         # Frame para outros botões
-        other_frame = ttk.Frame(button_frame)
-        other_frame.grid(row=0, column=1, padx=5, pady=5)
+        other_frame = ttk.Frame(button_frame, style='Card.TFrame')
+        other_frame.grid(row=0, column=1, padx=padding//2, pady=padding//2)
         
         # Botão para abrir pasta de resultados
         ttk.Button(
             other_frame, 
             text="Abrir Pasta de Resultados", 
-            command=self._open_results_folder
-        ).grid(row=0, column=0, padx=5, pady=5)
+            command=self._open_results_folder,
+            style="Primary.TButton"
+        ).grid(row=0, column=0, padx=padding//2, pady=padding//2)
         
         # Botão para limpar arquivos remotos
         self.clean_button = ttk.Button(
@@ -64,16 +72,16 @@ class ResultsFrame(ttk.Frame):
         self.clean_button.grid(row=0, column=1, padx=5, pady=5)
         
         # Lista de arquivos de resultados
-        results_frame = ttk.LabelFrame(self, text="Arquivos de Resultados")
-        results_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        results_frame = ttk.LabelFrame(self, text="Arquivos de Resultados", style='Card.TFrame')
+        results_frame.pack(fill=tk.BOTH, expand=True, padx=padding, pady=padding//2)
         
         # Lista de arquivos
         self.results_text = tk.Text(results_frame, height=15, width=80, state='disabled')
-        self.results_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.results_text.pack(fill=tk.BOTH, expand=True, padx=padding//2, pady=padding//2)
         
         # Informações sobre os resultados
-        info_frame = ttk.LabelFrame(self, text="Informações da Montagem")
-        info_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        info_frame = ttk.LabelFrame(self, text="Informações da Montagem", style='Card.TFrame')
+        info_frame.pack(fill=tk.BOTH, expand=True, padx=padding, pady=padding//2)
         
         # Sumário de resultados
         self.results_info_text = tk.Text(info_frame, height=8, width=80, state='disabled')
@@ -83,6 +91,7 @@ class ResultsFrame(ttk.Frame):
         try:
             style = ttk.Style()
             style.configure("Warning.TButton", foreground="red", font=('Helvetica', 9, 'bold'))
+            style.configure("Primary.TButton", foreground="black", font=('Helvetica', 9, 'bold'))
         except Exception:
             pass
         

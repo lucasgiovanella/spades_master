@@ -258,30 +258,67 @@ class JobManager:
                 self.status_updater.update_log(f"Usando diretório remoto padrão: {remote_dir}")
                 
             # Verificar se o diretório já existe
-            stdin, stdout, stderr = self.ssh.exec_command(f"[ -d {remote_dir} ] && echo 'EXISTS' || echo 'NOT_EXISTS'")
+            stdin, stdout, stderr = self.ssh.exec_command(f"[ -d \"{remote_dir}\" ] && echo 'EXISTS' || echo 'NOT_EXISTS'")
             dir_exists = stdout.read().decode().strip()
             
             if dir_exists == 'EXISTS':
                 self.status_updater.update_log(f"Diretório remoto já existe: {remote_dir}")
+                
+                # Verificar permissões do diretório existente
+                stdin, stdout, stderr = self.ssh.exec_command(f"ls -ld \"{remote_dir}\"")
+                dir_perms = stdout.read().decode().strip()
+                self.status_updater.update_log(f"Permissões do diretório remoto: {dir_perms}", "INFO")
+                
+                # Tentar corrigir permissões se necessário
+                stdin, stdout, stderr = self.ssh.exec_command(f"chmod u+rwx \"{remote_dir}\" 2>/dev/null && echo 'OK' || echo 'ERROR'")
+                chmod_result = stdout.read().decode().strip()
+                if chmod_result == 'OK':
+                    self.status_updater.update_log(f"Permissões do diretório remoto atualizadas", "INFO")
             else:
-                # Criar diretório
-                stdin, stdout, stderr = self.ssh.exec_command(f"mkdir -p {remote_dir}")
+                # Criar diretório com permissões explícitas
+                stdin, stdout, stderr = self.ssh.exec_command(f"mkdir -p \"{remote_dir}\" && chmod 755 \"{remote_dir}\"")
                 exit_status = stdout.channel.recv_exit_status()
                 
                 if exit_status == 0:
-                    self.status_updater.update_log(f"Diretório remoto criado: {remote_dir}")
+                    self.status_updater.update_log(f"Diretório remoto criado: {remote_dir}", "SUCCESS")
                 else:
                     error = stderr.read().decode().strip()
                     self.status_updater.update_log(f"Erro ao criar diretório remoto: {error}", "ERROR")
-                    return False
                     
-            # Verificar permissões
-            stdin, stdout, stderr = self.ssh.exec_command(f"touch {remote_dir}/.test_write && rm {remote_dir}/.test_write && echo 'OK' || echo 'ERROR'")
-            write_test = stdout.read().decode().strip()
-            
-            if write_test != 'OK':
-                self.status_updater.update_log(f"Aviso: Sem permissão de escrita no diretório remoto: {remote_dir}", "WARNING")
+                    # Tentar criar em um local alternativo
+                    alt_remote_dir = "/tmp/spades_jobs_" + datetime.now().strftime("%Y%m%d%H%M%S")
+                    self.status_updater.update_log(f"Tentando criar diretório alternativo: {alt_remote_dir}", "WARNING")
+                    
+                    stdin, stdout, stderr = self.ssh.exec_command(f"mkdir -p \"{alt_remote_dir}\" && chmod 755 \"{alt_remote_dir}\"")
+                    alt_exit_status = stdout.channel.recv_exit_status()
+                    
+                    if alt_exit_status == 0:
+                        remote_dir = alt_remote_dir
+                        self.status_updater.update_log(f"Diretório alternativo criado: {remote_dir}", "SUCCESS")
+                    else:
+                        alt_error = stderr.read().decode().strip()
+                        self.status_updater.update_log(f"Erro ao criar diretório alternativo: {alt_error}", "ERROR")
+                        return False
+                    
+            # Verificar permissões com múltiplas tentativas
+            max_attempts = 3
+            for attempt in range(1, max_attempts + 1):
+                stdin, stdout, stderr = self.ssh.exec_command(f"touch \"{remote_dir}/.test_write\" && rm \"{remote_dir}/.test_write\" && echo 'OK' || echo 'ERROR'")
+                write_test = stdout.read().decode().strip()
                 
+                if write_test == 'OK':
+                    self.status_updater.update_log(f"Permissão de escrita confirmada no diretório remoto", "SUCCESS")
+                    return True
+                else:
+                    if attempt < max_attempts:
+                        self.status_updater.update_log(f"Tentativa {attempt}/{max_attempts}: Sem permissão de escrita. Tentando corrigir...", "WARNING")
+                        # Tentar corrigir permissões
+                        stdin, stdout, stderr = self.ssh.exec_command(f"chmod -R u+rwx \"{remote_dir}\" 2>/dev/null")
+                        time.sleep(1)  # Pequena pausa entre tentativas
+                    else:
+                        self.status_updater.update_log(f"Aviso: Sem permissão de escrita no diretório remoto após {max_attempts} tentativas", "WARNING")
+                        # Continuar mesmo com o aviso, pois algumas operações ainda podem funcionar
+            
             return True
                 
         except Exception as e:
@@ -299,7 +336,7 @@ class JobManager:
         Returns:
             bool: True se enviados com sucesso
         """
-        if not self.connected or not self.scp_client:
+        if not self.connected or not self.ssh:
             return False
             
         try:
@@ -321,7 +358,47 @@ class JobManager:
             
             self.status_updater.update_log(f"Tamanho total dos arquivos: {total_size_mb:.2f} MB")
             
-            # Enviar arquivos
+            # Verificar permissões do diretório remoto antes de iniciar transferência
+            stdin, stdout, stderr = self.ssh.exec_command(f"ls -ld \"{remote_dir}\"")
+            dir_perms = stdout.read().decode().strip()
+            self.status_updater.update_log(f"Permissões do diretório remoto: {dir_perms}", "INFO")
+            
+            # Tentar corrigir permissões se necessário
+            stdin, stdout, stderr = self.ssh.exec_command(f"chmod u+rwx \"{remote_dir}\" 2>/dev/null && echo 'OK' || echo 'ERROR'")
+            chmod_result = stdout.read().decode().strip()
+            if chmod_result == 'OK':
+                self.status_updater.update_log(f"Permissões do diretório remoto atualizadas", "INFO")
+            
+            # Recriar cliente SCP para garantir conexão fresca
+            try:
+                if self.scp_client:
+                    self.scp_client.close()
+                transport = self.ssh.get_transport()
+                if transport is None:
+                    self.status_updater.update_log("Erro ao obter transporte SSH. Reconectando...", "WARNING")
+                    # Reconectar usando informações armazenadas
+                    if self.connection_info and self.connection_info.get("host"):
+                        self.ssh.close()
+                        self.ssh = paramiko.SSHClient()
+                        self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                        self.ssh.connect(
+                            hostname=self.connection_info.get("host"),
+                            port=self.connection_info.get("port", 22),
+                            username=self.connection_info.get("username"),
+                            timeout=10
+                        )
+                        transport = self.ssh.get_transport()
+                    else:
+                        self.status_updater.update_log("Não foi possível reconectar - informações de conexão ausentes", "ERROR")
+                        return False
+                
+                self.scp_client = scp.SCPClient(transport, progress=self._progress_callback)
+            except Exception as scp_error:
+                self.status_updater.update_log(f"Erro ao criar cliente SCP: {str(scp_error)}", "ERROR")
+                return False
+            
+            # Enviar arquivos com mecanismo de retry
+            max_retries = 3
             for local_file in local_files:
                 if not os.path.exists(local_file):
                     self.status_updater.update_log(f"Arquivo não encontrado: {local_file}", "ERROR")
@@ -335,11 +412,62 @@ class JobManager:
                 file_size_mb = file_size / (1024 * 1024)
                 self.status_updater.update_log(f"Tamanho do arquivo: {file_size_mb:.2f} MB")
                 
-                try:
-                    self.scp_client.put(local_file, f"{remote_dir}/{filename}")
+                # Tentar enviar com múltiplas tentativas
+                success = False
+                for attempt in range(1, max_retries + 1):
+                    try:
+                        # Tentar primeiro com SCP
+                        if self.scp_client:
+                            try:
+                                # Resetar a barra de progresso antes de iniciar a transferência
+                                self.status_updater.update_progress(0)
+                                self.scp_client.put(local_file, f"{remote_dir}/{filename}")
+                                # Garantir que a barra de progresso chegue a 100% ao finalizar
+                                self.status_updater.update_progress(100)
+                                success = True
+                                break
+                            except Exception as scp_error:
+                                self.status_updater.update_log(f"Tentativa {attempt}/{max_retries} com SCP falhou: {str(scp_error)}", "WARNING")
+                                
+                                # Se SCP falhar, tentar com SFTP
+                                try:
+                                    # Resetar a barra de progresso antes de iniciar a transferência com SFTP
+                                    self.status_updater.update_progress(0)
+                                    transport = self.ssh.get_transport()
+                                    sftp = paramiko.SFTPClient.from_transport(transport)
+                                    sftp.put(local_file, f"{remote_dir}/{filename}", callback=self._sftp_progress_callback)
+                                    sftp.close()
+                                    # Garantir que a barra de progresso chegue a 100% ao finalizar
+                                    self.status_updater.update_progress(100)
+                                    success = True
+                                    break
+                                except Exception as sftp_error:
+                                    self.status_updater.update_log(f"Tentativa {attempt}/{max_retries} com SFTP falhou: {str(sftp_error)}", "WARNING")
+                    except Exception as e:
+                        self.status_updater.update_log(f"Erro na tentativa {attempt}/{max_retries}: {str(e)}", "WARNING")
+                    
+                    if attempt < max_retries:
+                        self.status_updater.update_log(f"Tentando novamente em 2 segundos...", "INFO")
+                        time.sleep(2)  # Esperar antes de tentar novamente
+                        
+                        # Tentar recriar o cliente SCP
+                        try:
+                            if self.scp_client:
+                                self.scp_client.close()
+                            transport = self.ssh.get_transport()
+                            self.scp_client = scp.SCPClient(transport, progress=self._progress_callback)
+                        except Exception:
+                            pass
+                
+                if success:
                     self.status_updater.update_log(f"Arquivo enviado: {filename}", "SUCCESS")
-                except Exception as upload_error:
-                    self.status_updater.update_log(f"Erro ao enviar arquivo {filename}: {str(upload_error)}", "ERROR")
+                else:
+                    # Verificar permissões do diretório remoto
+                    stdin, stdout, stderr = self.ssh.exec_command(f"ls -la \"{remote_dir}\"")
+                    dir_content = stdout.read().decode().strip()
+                    self.status_updater.update_log(f"Conteúdo do diretório remoto:\n{dir_content}", "INFO")
+                    
+                    self.status_updater.update_log(f"Falha ao enviar arquivo {filename} após {max_retries} tentativas", "ERROR")
                     return False
                 
             return True
@@ -391,6 +519,8 @@ class JobManager:
         try:
             if size:
                 percent = float(sent) / float(size) * 100
+                # Atualizar a barra de progresso apenas se o valor for diferente do atual
+                # para evitar atualizações desnecessárias
                 self.status_updater.update_progress(int(percent))
         except Exception:
             pass
@@ -652,7 +782,7 @@ echo $!  # Retorna o PID do processo
                     
                     if process_info:
                         # Processo ainda está rodando
-                        self.status_updater.update_log(f"Status do processo: {process_info}")
+                        
                         no_response_count = 0  # Resetar contador
                         
                         # Verificar log do SPAdes
@@ -882,12 +1012,23 @@ echo $!  # Retorna o PID do processo
             self.status_updater.update_status("Verificando resultados...")
             
             # Verificar se o diretório remoto existe
-            stdin, stdout, stderr = self.ssh.exec_command(f"[ -d {remote_dir}/{output_dir} ] && echo 'OK' || echo 'NOT_FOUND'")
+            stdin, stdout, stderr = self.ssh.exec_command(f"[ -d \"{remote_dir}/{output_dir}\" ] && echo 'OK' || echo 'NOT_FOUND'")
             dir_exists = stdout.read().decode().strip()
             
             if dir_exists != 'OK':
                 self.status_updater.update_log(f"Diretório remoto não encontrado: {remote_dir}/{output_dir}", "ERROR")
                 return False
+                
+            # Verificar permissões do diretório remoto
+            stdin, stdout, stderr = self.ssh.exec_command(f"ls -ld \"{remote_dir}/{output_dir}\"")
+            dir_perms = stdout.read().decode().strip()
+            self.status_updater.update_log(f"Permissões do diretório de resultados: {dir_perms}", "INFO")
+            
+            # Tentar corrigir permissões se necessário
+            stdin, stdout, stderr = self.ssh.exec_command(f"chmod -R u+r \"{remote_dir}/{output_dir}\" 2>/dev/null && echo 'OK' || echo 'ERROR'")
+            chmod_result = stdout.read().decode().strip()
+            if chmod_result == 'OK':
+                self.status_updater.update_log(f"Permissões do diretório de resultados atualizadas", "INFO")
                 
             # Definir arquivos importantes do SPAdes
             important_files = [
@@ -917,7 +1058,7 @@ echo $!  # Retorna o PID do processo
             if important_only:
                 # Verificar quais arquivos importantes existem para download seletivo
                 for file in important_files:
-                    stdin, stdout, stderr = self.ssh.exec_command(f"[ -f {remote_dir}/{output_dir}/{file} ] && echo 'OK:{file}' || echo 'NOT_FOUND:{file}'")
+                    stdin, stdout, stderr = self.ssh.exec_command(f"[ -f \"{remote_dir}/{output_dir}/{file}\" ] && echo 'OK:{file}' || echo 'NOT_FOUND:{file}'")
                     result = stdout.read().decode().strip()
                     
                     if result.startswith('OK:'):
@@ -928,12 +1069,12 @@ echo $!  # Retorna o PID do processo
                     self.status_updater.update_log("Nenhum arquivo importante encontrado. A montagem pode ter falhado.", "ERROR")
                     
                     # Verificar se há algum arquivo de log que possa indicar o problema
-                    stdin, stdout, stderr = self.ssh.exec_command(f"find {remote_dir} -name '*.log' | head -1")
+                    stdin, stdout, stderr = self.ssh.exec_command(f"find \"{remote_dir}\" -name '*.log' | head -1")
                     log_file = stdout.read().decode().strip()
                     
                     if log_file:
                         self.status_updater.update_log(f"Encontrado arquivo de log: {log_file}")
-                        stdin, stdout, stderr = self.ssh.exec_command(f"tail -n 20 {log_file}")
+                        stdin, stdout, stderr = self.ssh.exec_command(f"tail -n 20 \"{log_file}\"")
                         log_content = stdout.read().decode().strip()
                         self.status_updater.update_log(f"Últimas linhas do log:\n{log_content}")
                         
@@ -943,30 +1084,89 @@ echo $!  # Retorna o PID do processo
                 self.status_updater.update_status("Baixando arquivos importantes...")
                 self.status_updater.update_log(f"Arquivos importantes encontrados: {', '.join(found_files)}")
                 
-                # Usar SFTP em vez de SCP para maior compatibilidade
+                # Recriar cliente SCP para garantir conexão fresca
                 try:
-                    # Criar cliente SFTP (mais robusto que SCP)
+                    if self.scp_client:
+                        self.scp_client.close()
                     transport = self.ssh.get_transport()
-                    sftp = paramiko.SFTPClient.from_transport(transport)
+                    if transport is None:
+                        self.status_updater.update_log("Erro ao obter transporte SSH. Reconectando...", "WARNING")
+                        # Reconectar usando informações armazenadas
+                        if self.connection_info and self.connection_info.get("host"):
+                            self.ssh.close()
+                            self.ssh = paramiko.SSHClient()
+                            self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                            self.ssh.connect(
+                                hostname=self.connection_info.get("host"),
+                                port=self.connection_info.get("port", 22),
+                                username=self.connection_info.get("username"),
+                                timeout=10
+                            )
+                            transport = self.ssh.get_transport()
+                        else:
+                            self.status_updater.update_log("Não foi possível reconectar - informações de conexão ausentes", "ERROR")
+                            return False
                     
-                    for file in found_files:
-                        remote_path = f"{remote_dir}/{output_dir}/{file}"
-                        local_path = os.path.join(local_output_path, file)
-                        self.status_updater.update_log(f"Baixando {file}...")
-                        
+                    self.scp_client = scp.SCPClient(transport, progress=self._progress_callback)
+                except Exception as scp_error:
+                    self.status_updater.update_log(f"Erro ao criar cliente SCP: {str(scp_error)}", "WARNING")
+                    # Continuar mesmo com erro, pois tentaremos SFTP também
+                
+                # Usar múltiplos métodos de transferência com retry
+                max_retries = 3
+                download_success = True
+                
+                for file in found_files:
+                    remote_path = f"{remote_dir}/{output_dir}/{file}"
+                    local_path = os.path.join(local_output_path, file)
+                    self.status_updater.update_log(f"Baixando {file}...")
+                    
+                    # Tentar baixar com múltiplas tentativas
+                    file_success = False
+                    for attempt in range(1, max_retries + 1):
                         try:
-                            # Método de download com try alternativo se o primeiro falhar
+                            # Tentar primeiro com SFTP
                             try:
+                                transport = self.ssh.get_transport()
+                                sftp = paramiko.SFTPClient.from_transport(transport)
                                 sftp.get(remote_path, local_path, callback=self._sftp_progress_callback)
+                                sftp.close()
+                                file_success = True
+                                break
                             except Exception as sftp_error:
-                                self.status_updater.update_log(f"Tentativa SFTP falhou, tentando SCP: {str(sftp_error)}", "WARNING")
-                                # Tentar com SCP se SFTP falhar
-                                self.scp_client.get(remote_path, local_path)
+                                self.status_updater.update_log(f"Tentativa {attempt}/{max_retries} com SFTP falhou: {str(sftp_error)}", "WARNING")
                                 
-                            self.status_updater.update_log(f"Arquivo {file} baixado com sucesso", "SUCCESS")
-                        except Exception as file_error:
-                            self.status_updater.update_log(f"Erro ao baixar {file}: {str(file_error)}", "ERROR")
+                                # Tentar com SCP se SFTP falhar
+                                if self.scp_client:
+                                    try:
+                                        self.scp_client.get(remote_path, local_path)
+                                        file_success = True
+                                        break
+                                    except Exception as scp_error:
+                                        self.status_updater.update_log(f"Tentativa {attempt}/{max_retries} com SCP falhou: {str(scp_error)}", "WARNING")
+                        except Exception as e:
+                            self.status_updater.update_log(f"Erro na tentativa {attempt}/{max_retries}: {str(e)}", "WARNING")
+                        
+                        if attempt < max_retries:
+                            self.status_updater.update_log(f"Tentando novamente em 2 segundos...", "INFO")
+                            time.sleep(2)  # Esperar antes de tentar novamente
+                            
+                            # Tentar recriar o cliente SCP
+                            try:
+                                if self.scp_client:
+                                    self.scp_client.close()
+                                transport = self.ssh.get_transport()
+                                self.scp_client = scp.SCPClient(transport, progress=self._progress_callback)
+                            except Exception:
+                                pass
                     
+                    if file_success:
+                        self.status_updater.update_log(f"Arquivo {file} baixado com sucesso", "SUCCESS")
+                    else:
+                        self.status_updater.update_log(f"Falha ao baixar arquivo {file} após {max_retries} tentativas", "ERROR")
+                        download_success = False
+                
+                if download_success:
                     # Criar arquivo indicando que apenas arquivos selecionados foram baixados
                     with open(os.path.join(local_output_path, "IMPORTANT_FILES_ONLY.txt"), "w") as f:
                         f.write("Esta pasta contém apenas os arquivos importantes da montagem do SPAdes.\n")
@@ -976,9 +1176,8 @@ echo $!  # Retorna o PID do processo
                     self.status_updater.update_log(f"Arquivos importantes baixados com sucesso para {local_output_path}", "SUCCESS")
                     self.status_updater.update_status("Arquivos importantes baixados com sucesso")
                     return True
-                except Exception as transfer_error:
-                    self.status_updater.update_log(f"Erro na transferência via SFTP: {str(transfer_error)}", "ERROR")
-                    # Continuar com método alternativo abaixo caso SFTP falhe completamente
+                else:
+                    self.status_updater.update_log("Alguns arquivos não puderam ser baixados. Tentando método alternativo...", "WARNING")
             
             # Se não for download seletivo ou se o método seletivo falhou, tentar método de compressão
             self.status_updater.update_log("Baixando todos os arquivos (compressão)...")
@@ -988,7 +1187,11 @@ echo $!  # Retorna o PID do processo
             timestamp = int(time.time())
             tar_filename = f"{output_dir}_{timestamp}.tar.gz"
             
-            compress_cmd = f"cd {remote_dir} && tar -czf {tar_filename} {output_dir}"
+            # Garantir permissões de leitura antes de comprimir
+            self.ssh.exec_command(f"chmod -R u+r \"{remote_dir}/{output_dir}\" 2>/dev/null")
+            
+            # Usar aspas para lidar com espaços nos nomes de arquivos
+            compress_cmd = f"cd \"{remote_dir}\" && tar -czf \"{tar_filename}\" \"{output_dir}\""            
             stdin, stdout, stderr = self.ssh.exec_command(compress_cmd)
             exit_status = stdout.channel.recv_exit_status()
             
@@ -996,30 +1199,78 @@ echo $!  # Retorna o PID do processo
                 error = stderr.read().decode().strip()
                 self.status_updater.update_log(f"Erro ao comprimir resultados: {error}", "ERROR")
                 
-                # Falha final - exibir mensagem com possíveis soluções
-                self.status_updater.update_log("Falha em todos os métodos de download. Tente estas soluções:", "ERROR")
-                self.status_updater.update_log("1. Verifique permissões no servidor", "ERROR")
-                self.status_updater.update_log("2. Use a opção de terminal SSH integrado para transferência manual", "ERROR")
-                self.status_updater.update_log("3. Reinicie a aplicação e tente novamente", "ERROR")
+                # Tentar método alternativo com permissões explícitas
+                self.status_updater.update_log("Tentando método alternativo de compressão...", "WARNING")
+                alt_compress_cmd = f"cd \"{remote_dir}\" && find \"{output_dir}\" -type f -exec chmod 644 {{}} \; && find \"{output_dir}\" -type d -exec chmod 755 {{}} \; && tar -czf \"{tar_filename}\" \"{output_dir}\""                
+                stdin, stdout, stderr = self.ssh.exec_command(alt_compress_cmd)
+                alt_exit_status = stdout.channel.recv_exit_status()
+                
+                if alt_exit_status != 0:
+                    alt_error = stderr.read().decode().strip()
+                    self.status_updater.update_log(f"Erro no método alternativo: {alt_error}", "ERROR")
+                    
+                    # Falha final - exibir mensagem com possíveis soluções
+                    self.status_updater.update_log("Falha em todos os métodos de download. Tente estas soluções:", "ERROR")
+                    self.status_updater.update_log("1. Verifique permissões no servidor", "ERROR")
+                    self.status_updater.update_log("2. Use a opção de terminal SSH integrado para transferência manual", "ERROR")
+                    self.status_updater.update_log("3. Reinicie a aplicação e tente novamente", "ERROR")
+                    return False
+                
+            # Verificar se o arquivo comprimido foi criado
+            stdin, stdout, stderr = self.ssh.exec_command(f"[ -f \"{remote_dir}/{tar_filename}\" ] && echo 'OK' || echo 'NOT_FOUND'")
+            tar_exists = stdout.read().decode().strip()
+            
+            if tar_exists != 'OK':
+                self.status_updater.update_log(f"Arquivo comprimido não foi criado: {remote_dir}/{tar_filename}", "ERROR")
                 return False
                 
-            # Baixar o arquivo comprimido
+            # Baixar o arquivo comprimido com múltiplas tentativas
             local_tar_path = os.path.join(local_dir, tar_filename)
             self.status_updater.update_log(f"Baixando arquivo comprimido para {local_tar_path}...")
             
-            try:
-                # Tentar primeiro com SFTP
-                transport = self.ssh.get_transport()
-                sftp = paramiko.SFTPClient.from_transport(transport)
-                sftp.get(f"{remote_dir}/{tar_filename}", local_tar_path, callback=self._sftp_progress_callback)
-            except Exception as sftp_error:
-                self.status_updater.update_log(f"Download via SFTP falhou, tentando SCP: {str(sftp_error)}", "WARNING")
+            max_retries = 3
+            download_success = False
+            
+            for attempt in range(1, max_retries + 1):
                 try:
-                    # Tentar com SCP se SFTP falhar
-                    self.scp_client.get(f"{remote_dir}/{tar_filename}", local_tar_path)
-                except Exception as scp_error:
-                    self.status_updater.update_log(f"Erro ao baixar arquivo comprimido: {str(scp_error)}", "ERROR")
-                    return False
+                    # Tentar primeiro com SFTP
+                    try:
+                        transport = self.ssh.get_transport()
+                        sftp = paramiko.SFTPClient.from_transport(transport)
+                        sftp.get(f"{remote_dir}/{tar_filename}", local_tar_path, callback=self._sftp_progress_callback)
+                        sftp.close()
+                        download_success = True
+                        break
+                    except Exception as sftp_error:
+                        self.status_updater.update_log(f"Tentativa {attempt}/{max_retries} com SFTP falhou: {str(sftp_error)}", "WARNING")
+                        
+                        # Tentar com SCP se SFTP falhar
+                        if self.scp_client:
+                            try:
+                                self.scp_client.get(f"{remote_dir}/{tar_filename}", local_tar_path)
+                                download_success = True
+                                break
+                            except Exception as scp_error:
+                                self.status_updater.update_log(f"Tentativa {attempt}/{max_retries} com SCP falhou: {str(scp_error)}", "WARNING")
+                except Exception as e:
+                    self.status_updater.update_log(f"Erro na tentativa {attempt}/{max_retries}: {str(e)}", "WARNING")
+                
+                if attempt < max_retries:
+                    self.status_updater.update_log(f"Tentando novamente em 3 segundos...", "INFO")
+                    time.sleep(3)  # Esperar antes de tentar novamente
+                    
+                    # Tentar recriar o cliente SCP
+                    try:
+                        if self.scp_client:
+                            self.scp_client.close()
+                        transport = self.ssh.get_transport()
+                        self.scp_client = scp.SCPClient(transport, progress=self._progress_callback)
+                    except Exception:
+                        pass
+            
+            if not download_success:
+                self.status_updater.update_log(f"Falha ao baixar arquivo comprimido após {max_retries} tentativas", "ERROR")
+                return False
                 
             # Descomprimir localmente
             self.status_updater.update_log("Descomprimindo arquivo localmente...")
@@ -1028,10 +1279,13 @@ echo $!  # Retorna o PID do processo
                     tar.extractall(path=local_dir)
                     
                 # Remover arquivo tar
-                os.remove(local_tar_path)
+                try:
+                    os.remove(local_tar_path)
+                except Exception as rm_error:
+                    self.status_updater.update_log(f"Aviso: Não foi possível remover arquivo temporário: {str(rm_error)}", "WARNING")
                 
                 # Remover arquivo tar no servidor para economizar espaço
-                self.ssh.exec_command(f"rm {remote_dir}/{tar_filename}")
+                self.ssh.exec_command(f"rm \"{remote_dir}/{tar_filename}\"")
                 
                 self.status_updater.update_log(f"Resultados completos baixados com sucesso para {local_dir}/{output_dir}", "SUCCESS")
                 self.status_updater.update_status("Resultados baixados com sucesso")
@@ -1050,6 +1304,8 @@ echo $!  # Retorna o PID do processo
         try:
             if total:
                 percent = float(transferred) / float(total) * 100
+                # Atualizar a barra de progresso apenas se o valor for diferente do atual
+                # para evitar atualizações desnecessárias
                 self.status_updater.update_progress(int(percent))
         except Exception:
             pass
@@ -1087,7 +1343,8 @@ echo $!  # Retorna o PID do processo
                     
                 try:
                     pid = parts[0]
-                    cpu_percent = float(parts[1])
+                    cpu_count = int(self.check_server_resources().get('cpu_count', 1))
+                    cpu_percent = float(parts[1]) / cpu_count
                     mem_percent = float(parts[2])
                     mem_rss = int(parts[3])  # em KB
                     cmd = parts[4]

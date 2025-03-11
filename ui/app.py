@@ -18,6 +18,8 @@ if HAS_TTKTHEMES:
     BaseClass = ThemedTk
 else:
     BaseClass = tk.Tk
+    
+from ui.styles import ResponsiveUI, apply_theme
 
 from config.settings import APP_VERSION, APP_NAME
 from utils.status_updater import StatusUpdater
@@ -47,11 +49,27 @@ class SPAdesMasterApp(BaseClass):
         # Configurar a janela principal
         self.title(f"{APP_NAME} v{APP_VERSION} - Gerenciador de Montagens")
         
+        # Definir tamanho inicial da janela (80% da tela)
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        window_width = int(screen_width * 0.8)
+        window_height = int(screen_height * 0.8)
+        x_position = (screen_width - window_width) // 2
+        y_position = (screen_height - window_height) // 2
+        self.geometry(f"{window_width}x{window_height}+{x_position}+{y_position}")
+        self.minsize(800, 600)  # Definir tamanho mínimo da janela
+        
+        # Inicializar o sistema de UI responsiva
+        self.responsive_ui = ResponsiveUI(self)
+        
+        # Aplicar tema moderno
+        self.style = apply_theme(self)
+        
         # Criar ícone se disponível
         try:
             # Tentar carregar ícone se disponível
             if platform.system() == "Windows":
-                icon_path = "resources/spades_icon.ico"
+                icon_path = "media/spades_icon.ico"
                 if os.path.exists(icon_path):
                     self.iconbitmap(icon_path)
         except Exception:
@@ -78,6 +96,9 @@ class SPAdesMasterApp(BaseClass):
         
         # Vincular eventos
         self._bind_events()
+        
+        # Vincular evento de configuração da janela para atualizar o canvas
+        self.bind("<Configure>", self._on_configure)
         
         # Inicialização
         self.status_updater.update_log(f"Aplicativo {APP_NAME} v{APP_VERSION} iniciado")
@@ -141,21 +162,47 @@ class SPAdesMasterApp(BaseClass):
         
     def _create_widgets(self):
         """Cria os widgets principais da interface"""
-        # Criar notebook (abas)
-        self.notebook = ttk.Notebook(self)
-        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # Criar um frame principal para conter todos os elementos
+        main_container = ttk.Frame(self)
+        main_container.pack(fill=tk.BOTH, expand=True)
         
-        # Frame de status (parte inferior)
-        status_frame = ttk.Frame(self)
-        status_frame.pack(fill=tk.X, side=tk.BOTTOM, padx=10, pady=5)
+        # Criar um canvas com scrollbar para garantir que todo o conteúdo seja visível
+        self.canvas = tk.Canvas(main_container)
+        self.scrollbar = ttk.Scrollbar(main_container, orient="vertical", command=self.canvas.yview)
+        self.scrollable_frame = ttk.Frame(self.canvas)
         
-        # Barra de progresso
-        progress = ttk.Progressbar(status_frame, variable=self.progress_var, maximum=100)
-        progress.pack(fill=tk.X, side=tk.BOTTOM, pady=5)
+        # Configurar o scrollable_frame para expandir conforme necessário
+        self.scrollable_frame.bind(
+            "<Configure>",
+            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        )
         
-        # Status
-        status_label = ttk.Label(status_frame, textvariable=self.status_var)
-        status_label.pack(side=tk.LEFT, padx=5)
+        # Criar uma janela no canvas que contém o frame scrollable
+        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+        
+        # Posicionar o canvas e a scrollbar
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.scrollbar.pack(side="right", fill="y")
+        
+        # Adicionar evento de rolagem com a roda do mouse
+        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+        
+        # Criar notebook (abas) com estilo melhorado dentro do frame scrollable
+        self.notebook = ttk.Notebook(self.scrollable_frame)
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=self.responsive_ui.get_padding(), pady=self.responsive_ui.get_padding())
+        
+        # Frame de status (parte inferior) com estilo melhorado
+        status_frame = ttk.Frame(self, style='Card.TFrame')
+        status_frame.pack(fill=tk.X, side=tk.BOTTOM, padx=self.responsive_ui.get_padding(), pady=self.responsive_ui.get_padding()//2)
+        
+        # Barra de progresso com estilo melhorado
+        progress = ttk.Progressbar(status_frame, variable=self.progress_var, maximum=100, style='TProgressbar')
+        progress.pack(fill=tk.X, side=tk.BOTTOM, pady=self.responsive_ui.get_padding()//2, padx=self.responsive_ui.get_padding()//2)
+        
+        # Status com estilo melhorado
+        status_label = ttk.Label(status_frame, textvariable=self.status_var, style='TLabel')
+        status_label.pack(side=tk.LEFT, padx=self.responsive_ui.get_padding())
         
         # # Frame de log aprimorado
         # self.log_frame = ttk.LabelFrame(self, text="Log de Execução")
@@ -224,6 +271,59 @@ class SPAdesMasterApp(BaseClass):
         self.results_frame.bind("<<DownloadResults>>", self._download_results_handler)
         self.results_frame.bind("<<OpenResultsFolder>>", lambda e: self._open_results_folder())
         self.results_frame.bind("<<CleanRemoteFiles>>", lambda e: self._clean_remote_files())  # Adicionar esse evento
+        
+    def _on_mousewheel(self, event):
+        """Manipula o evento de rolagem do mouse para o canvas"""
+        # No Windows, o evento.delta é um múltiplo de 120
+        # Valores negativos rolam para baixo, positivos para cima
+        if event.delta:
+            scroll_direction = -1 if event.delta < 0 else 1
+            self.canvas.yview_scroll(scroll_direction, "units")
+        else:
+            # Para outros sistemas operacionais
+            scroll_direction = -1 if event.num == 5 else 1
+            self.canvas.yview_scroll(scroll_direction, "units")
+            
+    def _update_canvas_scrollregion(self):
+        """Atualiza a região de rolagem do canvas para garantir que todo o conteúdo seja visível"""
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        
+    # Variável para controlar o throttling do resize
+    _resize_timer_id = None
+    
+    def _on_configure(self, event=None):
+        """Manipula eventos de redimensionamento da janela com throttling"""
+        # Implementar throttling para evitar múltiplas chamadas durante o redimensionamento
+        if event and event.widget == self:
+            # Cancelar o timer anterior se existir
+            if self._resize_timer_id:
+                self.after_cancel(self._resize_timer_id)
+                
+            # Definir um novo timer para executar o redimensionamento após um pequeno atraso
+            self._resize_timer_id = self.after(50, lambda: self._do_resize(event.width))
+    
+    def _do_resize(self, width):
+        """Executa o redimensionamento real após o throttling"""
+        # Limpar a referência do timer
+        self._resize_timer_id = None
+        
+        # Atualizar a região de rolagem
+        self._update_canvas_scrollregion()
+        
+        # Ajustar a largura do canvas para preencher a janela
+        if width > 1:
+            try:
+                # Usar try/except para evitar erros se não houver itens no canvas
+                self.canvas.itemconfig(self.canvas.find_withtag("all")[0], width=width)
+            except (IndexError, tk.TclError):
+                pass
+            
+        # Garantir que o frame scrollable tenha largura suficiente
+        self.canvas.configure(width=self.winfo_width())
+        
+        # Atualizar a UI responsiva
+        if hasattr(self, 'responsive_ui'):
+            self.responsive_ui._apply_responsive_styles()
         
     def _test_connection(self):
         """Testa a conexão com o servidor atual"""

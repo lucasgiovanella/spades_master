@@ -7,6 +7,7 @@ import threading
 import time
 from datetime import datetime
 import os
+from ui.styles import ResponsiveUI
 
 class ExecutionFrame(ttk.Frame):
     """Frame unificado para execução e monitoramento de jobs SPAdes com log integrado"""
@@ -36,34 +37,40 @@ class ExecutionFrame(ttk.Frame):
         
     def _create_widgets(self):
         """Cria os widgets do frame unificado"""
+        # Obter a instância de ResponsiveUI do aplicativo principal
+        self.responsive_ui = self.parent.master.responsive_ui if hasattr(self.parent, 'master') and hasattr(self.parent.master, 'responsive_ui') else None
+        
+        # Definir padding responsivo
+        padding = self.responsive_ui.get_padding() if self.responsive_ui else 10
+        
         # Frame principal dividido verticalmente
         main_frame = ttk.Frame(self)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=padding, pady=padding//2)
         
         # Frame superior para controles e métricas
-        top_frame = ttk.Frame(main_frame)
-        top_frame.pack(fill=tk.X, pady=5)
+        top_frame = ttk.Frame(main_frame, style='Card.TFrame')
+        top_frame.pack(fill=tk.X, pady=padding//2)
         
         # Frame para log centralizado (ocupará a maior parte da tela)
-        log_frame = ttk.LabelFrame(main_frame, text="Log de Execução Unificado")
-        log_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        log_frame = ttk.LabelFrame(main_frame, text="Log de Execução Unificado", style='Card.TFrame')
+        log_frame.pack(fill=tk.BOTH, expand=True, pady=padding//2)
         
         # Dividir top_frame em dois painéis horizontais
         controls_pane = ttk.PanedWindow(top_frame, orient=tk.HORIZONTAL)
         controls_pane.pack(fill=tk.X, expand=True)
         
         # Painel esquerdo - Informações e controles
-        left_control_frame = ttk.Frame(controls_pane)
+        left_control_frame = ttk.Frame(controls_pane, style='Card.TFrame')
         controls_pane.add(left_control_frame, weight=3)
         
         # Painel direito - Métricas
-        right_metrics_frame = ttk.Frame(controls_pane)
+        right_metrics_frame = ttk.Frame(controls_pane, style='Card.TFrame')
         controls_pane.add(right_metrics_frame, weight=2)
         
         # === PAINEL ESQUERDO ===
         # Informações do servidor
-        server_info_frame = ttk.LabelFrame(left_control_frame, text="Informações do Servidor")
-        server_info_frame.pack(fill=tk.X, padx=5, pady=5)
+        server_info_frame = ttk.LabelFrame(left_control_frame, text="Informações do Servidor", style='Card.TFrame')
+        server_info_frame.pack(fill=tk.X, padx=padding//2, pady=padding//2)
         
         self.server_info_text = tk.Text(server_info_frame, height=4, width=40, state='disabled')
         self.server_info_text.pack(fill=tk.X, padx=5, pady=5)
@@ -134,16 +141,48 @@ class ExecutionFrame(ttk.Frame):
         
         # Uso de CPU
         ttk.Label(metrics_grid, text="Uso de CPU:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=3)
-        ttk.Label(metrics_grid, textvariable=self.cpu_usage_var).grid(row=1, column=1, sticky=tk.W, padx=5, pady=3)
+        self.cpu_progress = ttk.Progressbar(metrics_grid, mode='determinate', length=150)
+        self.cpu_progress.grid(row=1, column=1, sticky=tk.W, padx=5, pady=3)
+        ttk.Label(metrics_grid, textvariable=self.cpu_usage_var).grid(row=1, column=2, sticky=tk.W, padx=5, pady=3)
         
         # Uso de memória
         ttk.Label(metrics_grid, text="Uso de memória:").grid(row=2, column=0, sticky=tk.W, padx=5, pady=3)
-        ttk.Label(metrics_grid, textvariable=self.memory_usage_var).grid(row=2, column=1, sticky=tk.W, padx=5, pady=3)
+        self.memory_progress = ttk.Progressbar(metrics_grid, mode='determinate', length=150)
+        self.memory_progress.grid(row=2, column=1, sticky=tk.W, padx=5, pady=3)
+        ttk.Label(metrics_grid, textvariable=self.memory_usage_var).grid(row=2, column=2, sticky=tk.W, padx=5, pady=3)
         
         # Fase atual
         ttk.Label(metrics_grid, text="Fase atual:").grid(row=3, column=0, sticky=tk.W, padx=5, pady=3)
         self.phase_label = ttk.Label(metrics_grid, textvariable=self.current_phase_var, wraplength=200)
-        self.phase_label.grid(row=3, column=1, sticky=tk.W, padx=5, pady=3)
+        self.phase_label.grid(row=3, column=1, sticky=tk.W, padx=5, pady=3, columnspan=2)
+        
+        # Tabela de processos
+        processes_frame = ttk.LabelFrame(resources_frame, text="Processos Ativos")
+        processes_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Criar treeview para processos
+        processes_columns = ("pid", "name", "cpu", "memory")
+        self.processes_tree = ttk.Treeview(processes_frame, columns=processes_columns, show="headings", height=4)
+        
+        # Configurar cabeçalhos
+        self.processes_tree.heading("pid", text="PID")
+        self.processes_tree.heading("name", text="Processo")
+        self.processes_tree.heading("cpu", text="CPU %")
+        self.processes_tree.heading("memory", text="MEM %")
+        
+        # Configurar colunas
+        self.processes_tree.column("pid", width=50)
+        self.processes_tree.column("name", width=120)
+        self.processes_tree.column("cpu", width=60)
+        self.processes_tree.column("memory", width=60)
+        
+        # Adicionar scrollbar
+        processes_scrollbar = ttk.Scrollbar(processes_frame, orient=tk.VERTICAL, command=self.processes_tree.yview)
+        self.processes_tree.configure(yscrollcommand=processes_scrollbar.set)
+        
+        # Empacotar treeview e scrollbar
+        self.processes_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        processes_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
         # Barra de progresso
         self.progress_bar = ttk.Progressbar(resources_frame, mode='indeterminate')
@@ -375,26 +414,31 @@ class ExecutionFrame(ttk.Frame):
                     # Atualizar uso de CPU (todos os processos SPAdes)
                     spades_cpu = process_info['spades_cpu']
                     self.cpu_usage_var.set(f"{spades_cpu}%")
+                    self.cpu_progress['value'] = min(spades_cpu, 100)  # Limitar a 100%
                     
                     # Atualizar uso de memória (todos os processos SPAdes)
                     spades_mem = process_info['spades_mem']
                     spades_mem_mb = process_info['spades_mem_mb']
-                    self.memory_usage_var.set(f"{spades_mem_mb} MB ({spades_mem}%)")
+                    self.memory_usage_var.set(f"{spades_mem_mb} MB ({spades_mem}%")
+                    self.memory_progress['value'] = min(spades_mem, 100)  # Limitar a 100%
                     
-                    # Adicionar ao log apenas se houver processos e números significativos
-                    if process_info['spades_processes'] and (spades_cpu > 0.5 or spades_mem > 0.5):
-                        self._add_to_log(f"Uso de CPU: {spades_cpu}% | Memória: {spades_mem_mb} MB ({spades_mem}%)", "METRICS")
+                    # Atualizar a tabela de processos
+                    self.processes_tree.delete(*self.processes_tree.get_children())
+                    
+                    # Mostrar os processos principais que estão consumindo mais CPU
+                    top_processes = sorted(process_info['spades_processes'], key=lambda x: x['cpu'], reverse=True)[:5]
+                    for proc in top_processes:
+                        cmd_short = proc['cmd'].split(' ')[0]
+                        if '/' in cmd_short:
+                            cmd_short = cmd_short.split('/')[-1]
                         
-                        # Mostrar os 3 processos principais que estão consumindo mais CPU
-                        top_processes = sorted(process_info['spades_processes'], key=lambda x: x['cpu'], reverse=True)[:3]
-                        if top_processes:
-                            process_log = "Principais processos:"
-                            for proc in top_processes:
-                                cmd_short = proc['cmd'].split(' ')[0]
-                                if '/' in cmd_short:
-                                    cmd_short = cmd_short.split('/')[-1]
-                                process_log += f"\n  - {cmd_short} (PID {proc['pid']}): CPU {proc['cpu']}%, MEM {proc['mem']}%"
-                            self._add_to_log(process_log, "METRICS")
+                        # Adicionar à tabela de processos
+                        self.processes_tree.insert("", tk.END, values=(
+                            proc['pid'],
+                            cmd_short,
+                            f"{proc['cpu']}%",
+                            f"{proc['mem']}%"
+                        ))
                 
                 # Verificar fase atual do SPAdes
                 if self.job_manager.job_output_file:
