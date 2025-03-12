@@ -1,264 +1,123 @@
-# SPAdes Master
+# SPAdes Master v1.2.1
 
-SPAdes Master é uma interface gráfica em Python para gerenciar, executar e monitorar montagens genômicas utilizando o [SPAdes](https://github.com/ablab/spades) (St. Petersburg genome assembler) em servidores remotos.
+Uma interface gráfica para gerenciar montagens genômicas com [SPAdes](https://github.com/ablab/spades) em servidores remotos.
 
 ![SPAdes Master Screenshot](media/spades_master_screenshot.png)
 
-## Visão Geral
+## Descrição
 
-SPAdes Master facilita o fluxo de trabalho de montagem genômica, proporcionando uma interface amigável para gerenciar todas as etapas do processo, desde a conexão ao servidor até a recuperação dos resultados. É especialmente útil para bioinformáticos e pesquisadores que precisam executar montagens de genoma em servidores remotos de alto desempenho.
+SPAdes Master é uma aplicação desktop desenvolvida em Python/Tkinter que permite gerenciar execuções remotas do montador de genomas SPAdes em servidores Linux via SSH. A ferramenta facilita o upload de arquivos FASTQ, configuração de parâmetros, monitoramento de execução e download de resultados, tudo através de uma interface gráfica amigável.
 
-### Funcionalidades Principais
+## Principais Funcionalidades
 
-- **Gerenciamento de perfis de servidor**: salve e gerencie múltiplas configurações de servidores
-- **Conexão SSH simplificada**: conecte-se facilmente a servidores remotos sem precisar usar comandos de terminal
-- **Envio automático de arquivos**: envie seus arquivos FASTQ para o servidor com apenas alguns cliques
-- **Configuração personalizada do SPAdes**: configure todos os parâmetros importantes do SPAdes através da interface gráfica
-- **Monitoramento em tempo real**: acompanhe o progresso e uso de recursos durante a execução
-- **Download de resultados**: baixe os resultados da montagem automaticamente quando concluídos
-- **Visualização integrada**: visualize e analise os resultados básicos da montagem
+- **Gerenciamento de Perfis de Servidor**: Salve e reutilize configurações de conexão SSH para diferentes servidores.
+- **Upload de Arquivos**: Envie facilmente arquivos FASTQ para o servidor.
+- **Configuração do SPAdes**: Interface intuitiva para definir parâmetros do SPAdes (threads, memória, k-mers, etc).
+- **Múltiplos Modos de Montagem**: Suporte para todos os modos do SPAdes (isolate, careful, meta, rna, plasmid, etc).
+- **Monitoramento em Tempo Real**: Visualize o status da execução, uso de CPU/memória e logs em tempo real.
+- **Download de Resultados**: Baixe apenas os arquivos importantes ou o conjunto completo de resultados.
+- **Interface Responsiva**: Design moderno e adaptável a diferentes tamanhos de tela.
+- **Terminal SSH Integrado**: Acesse diretamente o servidor com um clique.
 
-## Requisitos
+## Requisitos de Sistema
 
-- Python 3.6 ou superior
-- Bibliotecas Python (instaladas automaticamente via pip):
-  - tkinter
-  - paramiko
-  - scp
-- SPAdes instalado no servidor remoto
+- Python 3.6+
+- Bibliotecas Python:
+  - paramiko (>=2.7.2)
+  - scp (>=0.14.0)
+  - cryptography (>=36.0.0)
+  - ttkthemes (>=3.2.2)
+- Conexão com internet para acessar servidores remotos
 
 ## Instalação
 
-### Método 1: A partir do repositório
+### A partir do código-fonte:
 
-```bash
-# Clonar o repositório
-git clone https://github.com/seu-usuario/spades-master.git
-cd spades-master
+1. Clone o repositório ou baixe os arquivos-fonte
+2. Instale as dependências:
+   ```
+   pip install -r requirements.txt
+   ```
+3. Execute o aplicativo:
+   ```
+   python main.py
+   ```
 
-# Criar ambiente virtual (opcional, mas recomendado)
-python -m venv venv
-source venv/bin/activate  # No Windows: venv\Scripts\activate
+### Usando o executável (Windows):
 
-# Instalar dependências
-pip install -r requirements.txt
-```
+1. Baixe o arquivo executável da página de releases
+2. Execute o arquivo `SPAdesMaster.exe`
 
-### Método 2: Pacote PyPI
+## Criando um Executável
 
-```bash
-# Instalar diretamente via pip
-pip install spades-master
-```
-
-## Estrutura do Projeto
+Para gerar um executável, o projeto inclui um arquivo spec para PyInstaller:
 
 ```
-spades-master/
-├── config/
-│   ├── __init__.py
-│   └── settings.py          # Configurações globais da aplicação
-├── media/                   # Recursos de mídia (ícones, imagens)
-├── models/
-│   ├── __init__.py
-│   └── server_profile.py    # Modelo para gerenciar perfis de servidor
-├── services/
-│   ├── __init__.py
-│   └── job_manager.py       # Gerencia trabalhos remotos SSH
-├── ui/
-│   ├── __init__.py
-│   ├── app.py               # Aplicação principal
-│   ├── frames/              # Frames da interface gráfica
-│   │   ├── config_frame.py
-│   │   ├── execution_frame.py
-│   │   ├── monitoring_frame.py
-│   │   └── results_frame.py
-│   └── dialogs/             # Diálogos da interface
-│       ├── params_dialog.py
-│       ├── profile_dialog.py
-│       └── spades_path_dialog.py
-├── utils/
-│   ├── __init__.py
-│   ├── logging_utils.py     # Utilitários de log
-│   ├── ssh_utils.py         # Utilitários SSH
-│   └── status_updater.py    # Atualização de status na interface
-├── main.py                  # Ponto de entrada da aplicação
-├── requirements.txt         # Dependências do projeto
-└── README.md                # Este arquivo
+pyinstaller SPAdesMaster.spec
 ```
 
-## Como Usar
+O executável será criado na pasta `dist/SPAdesMaster`.
 
-### Executar a aplicação
+## Guia de Uso
 
-```bash
-# A partir do diretório do projeto
-python main.py
+### 1. Configuração do Servidor
 
-# OU, se instalado via pip
-spades-master
-```
+- Na aba "Configuração", crie um novo perfil de servidor ou selecione um existente
+- Informe o endereço do servidor, porta SSH, usuário e senha (ou arquivo de chave SSH)
+- Clique em "Testar Conexão" para verificar se as credenciais estão corretas
 
-### Configurando um Perfil de Servidor
+### 2. Configuração da Montagem
 
-1. Inicie o aplicativo
-2. Clique em "Novo" no campo de perfil ou no menu "Servidor" > "Gerenciar Perfis"
-3. Preencha os detalhes do servidor:
-   - Nome do perfil (para referência)
-   - Endereço do servidor (IP ou nome de domínio)
-   - Porta SSH (geralmente 22)
-   - Nome de usuário
-   - Método de autenticação (senha ou chave SSH)
-4. Clique em "Salvar"
+- Selecione os arquivos FASTQ de entrada (R1 e R2)
+- Especifique o diretório remoto para armazenar os arquivos
+- Configure os parâmetros do SPAdes (threads, memória, modo, etc)
+- Para opções avançadas, clique no menu "SPAdes" > "Configurar Parâmetros"
 
-### Executando uma Montagem
+### 3. Execução
 
-1. Selecione um perfil de servidor na aba "Configuração"
-2. Clique em "Selecionar Arquivos R1/R2" para escolher seus arquivos FASTQ
-3. Configure os parâmetros do SPAdes:
-   - Threads (número de núcleos a utilizar)
-   - Memória (GB)
-   - Modo de montagem (isolate, careful, meta, etc.)
-   - K-mers (opcional)
-4. Na aba "Execução e Monitoramento", clique em "Conectar ao Servidor"
-5. Após a conexão, clique em "Preparar e Enviar Arquivos"
-6. Quando os arquivos forem enviados, clique em "Iniciar SPAdes"
-7. Monitore o progresso na aba "Monitor de Recursos"
+- Na aba "Execução e Monitoramento", clique em "Conectar ao Servidor"
+- Clique em "Preparar e Enviar Arquivos" para enviar os arquivos FASTQ
+- Inicie a montagem clicando em "Iniciar SPAdes"
+- Monitore o progresso, uso de recursos e logs no painel unificado
 
-### Baixando Resultados
+### 4. Resultados
 
-1. Quando a montagem estiver concluída, vá para a aba "Resultados"
-2. Clique em "Baixar Resultados"
-3. Os arquivos serão baixados para o diretório local especificado
-4. Clique em "Abrir Pasta de Resultados" para visualizar os arquivos
-
-## Características Detalhadas
-
-### Gerenciamento de Perfis de Servidor
-
-O SPAdes Master permite salvar múltiplos perfis de servidor, facilitando a conexão a diferentes máquinas sem precisar inserir as credenciais repetidamente. Os perfis são armazenados localmente e podem ser facilmente gerenciados através da interface.
-
-### Monitoramento de Recursos
-
-Durante a execução do SPAdes, a aplicação monitora:
-- Uso de CPU
-- Uso de memória
-- Tempo decorrido
-- Fase atual da montagem
-
-### Autenticação Segura
-
-Suporta dois métodos de autenticação:
-- **Senha**: Autenticação padrão com usuário e senha
-- **Chave SSH**: Autenticação mais segura usando par de chaves pública/privada
-
-### Terminal SSH Integrado
-
-Possibilidade de abrir um terminal SSH diretamente do aplicativo para interagir manualmente com o servidor quando necessário.
-
-### Configuração Avançada do SPAdes
-
-A interface permite configurar parâmetros avançados do SPAdes, incluindo:
-- Diferentes modos de montagem (isolate, careful, meta, rna, plasmid, etc.)
-- Valores de k-mer personalizados
-- Alocação de recursos (threads e memória)
-- Parâmetros específicos como cutoff de cobertura e offset de qualidade Phred
+- Na aba "Resultados", baixe os arquivos gerados pelo SPAdes
+- Opção para baixar apenas arquivos importantes ou todos os arquivos
+- Visualize estatísticas da montagem como número de contigs, N50, etc
+- Abra a pasta de resultados para análise posterior
 
 ## Solução de Problemas
 
-### O SPAdes não é encontrado automaticamente
+### SPAdes não encontrado no servidor
 
-Se o SPAdes não for encontrado automaticamente no servidor:
-1. Um diálogo será exibido pedindo para especificar o caminho manualmente
-2. Você pode selecionar entre caminhos comuns ou inserir um caminho personalizado
-3. O aplicativo verificará se o caminho fornecido é válido
+Se o SPAdes não for encontrado automaticamente:
+1. Será exibido um diálogo para especificar manualmente o caminho
+2. Informe o caminho completo para o executável do SPAdes (ex: `/usr/local/bin/spades.py`)
+3. O sistema irá verificar se o caminho é válido e armazenar para uso futuro
 
-### Problemas de Conexão SSH
+### Falha na conexão SSH
 
-Se ocorrerem problemas de conexão SSH:
-1. Verifique se o servidor está acessível (ping)
-2. Confirme se as credenciais estão corretas
-3. Verifique restrições de firewall
-4. Teste a conexão SSH manualmente no terminal
+- Verifique se as credenciais (usuário/senha ou chave SSH) estão corretas
+- Confirme se o servidor está acessível e se a porta SSH está aberta
+- Verifique se há restrições de firewall ou limitações de acesso SSH
 
-### Erros na Execução do SPAdes
+### Monitoramento de Processos
 
-Se o SPAdes falhar durante a execução:
-1. Verifique os logs na interface
-2. Confirme se o SPAdes está instalado corretamente no servidor
-3. Verifique se há memória e espaço em disco suficientes
-4. Tente reduzir o número de threads ou a quantidade de memória alocada
+Os processos do SPAdes são monitorados automaticamente. Se a aplicação detectar que um processo não está mais rodando:
+1. O status será atualizado para "SPAdes concluído"
+2. Será verificado se o arquivo de scaffolds foi gerado com sucesso
+3. Você será notificado para que possa proceder com o download dos resultados
 
-## Gerando uma Distribuição Executável
+## Atribuições
 
-Para criar um executável independente do SPAdes Master:
-
-### Windows (usando PyInstaller)
-
-```bash
-# Instalar PyInstaller
-pip install pyinstaller
-
-# Gerar executável
-pyinstaller --name="SPAdesMaster" --windowed --icon=media/spades_icon.ico --add-data="media;media" main.py
-```
-
-### macOS (usando PyInstaller)
-
-```bash
-# Instalar PyInstaller
-pip install pyinstaller
-
-# Gerar aplicativo
-pyinstaller --name="SPAdesMaster" --windowed --icon=media/spades_icon.icns --add-data="media:media" main.py
-```
-
-### Linux (usando PyInstaller)
-
-```bash
-# Instalar PyInstaller
-pip install pyinstaller
-
-<<<<<<< HEAD
-# Gerar aplicativo
-pyinstaller --name="SPAdesMaster" --windowed --icon=media/spades_icon.ico --add-data="media:media" main.py
-=======
-# Gerar aplicativo para Linux
-pyinstaller --name="SPAdesMaster" --windowed --icon=media/spades_icon.ico-add-data="media:media" main.py
->>>>>>> teste
-```
-
-O executável resultante será encontrado na pasta `dist`.
-
-## Contribuindo
-
-Contribuições são bem-vindas! Por favor, sinta-se à vontade para abrir issues ou enviar pull requests.
-
-1. Faça fork do repositório
-2. Crie sua branch de feature (`git checkout -b feature/sua-feature`)
-3. Faça commit das suas mudanças (`git commit -m 'Adiciona alguma feature'`)
-4. Faça push para a branch (`git push origin feature/sua-feature`)
-5. Abra um Pull Request
+- SPAdes: [Center for Algorithmic Biotechnology](http://cab.spbu.ru/software/spades/)
+- Ícone: Criado para o projeto SPAdes Master
 
 ## Licença
 
-Este projeto está licenciado sob a licença MIT - veja o arquivo LICENSE para detalhes.
+Este software é distribuído sob a licença MIT. Veja o arquivo LICENSE para mais detalhes.
 
-## Créditos
+## Contato
 
-- SPAdes Master é desenvolvido e mantido por [Lucas Giovanella]
-- [SPAdes](https://github.com/ablab/spades) - St. Petersburg genome assembler
-
-## Citação
-
-Se você usar o SPAdes Master em sua pesquisa, por favor cite:
-
-```
-Lucas Giovanella, et al. (2025). SPAdes Master: A graphical interface for SPAdes genome assembler. [https://github.com/lucasgiovanella/spades_master]
-```
-
-E não se esqueça de citar também o SPAdes:
-
-```
-Bankevich, A., et al. (2012). SPAdes: A New Genome Assembly Algorithm and Its Applications to Single-Cell Sequencing. Journal of Computational Biology, 19(5), 455-477.
-```
+Para dúvidas, sugestões ou reportar problemas, abra uma issue no repositório do projeto.
