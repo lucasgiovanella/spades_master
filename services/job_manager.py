@@ -1448,33 +1448,33 @@ echo $!  # Retorna o PID do processo
             # Se output_dir foi especificado, remover apenas este diretório
             if output_dir:
                 output_dir = output_dir.strip()
-                target_path = f"{remote_dir}/{output_dir}"
-                self.status_updater.update_log(f"Verificando diretório de saída: {target_path}")
+                # target_path = f"{remote_dir}/{output_dir}"
+                self.status_updater.update_log(f"Verificando diretório de saída: {remote_dir}")
                 
                 # Verificar se o diretório existe
-                stdin, stdout, stderr = self.ssh.exec_command(f"[ -d \"{target_path}\" ] && echo 'EXISTS' || echo 'NOT_EXISTS'")
+                stdin, stdout, stderr = self.ssh.exec_command(f"[ -d \"{remote_dir}\" ] && echo 'EXISTS' || echo 'NOT_EXISTS'")
                 dir_exists = stdout.read().decode().strip()
                 
                 if dir_exists != 'EXISTS':
-                    return False, f"Diretório de saída não encontrado: {target_path}"
+                    return False, f"Diretório de saída não encontrado: {remote_dir}"
                 
                 # Verificar tamanho dos dados a serem removidos se confirmação ativada
                 if confirm:
-                    stdin, stdout, stderr = self.ssh.exec_command(f"du -sh \"{target_path}\" 2>/dev/null | cut -f1")
+                    stdin, stdout, stderr = self.ssh.exec_command(f"du -sh \"{remote_dir}\" 2>/dev/null | cut -f1")
                     dir_size = stdout.read().decode().strip()
                     
                     self.status_updater.update_log(f"Tamanho do diretório a ser removido: {dir_size}")
                 
                 # Remover diretório de saída (usando aspas para tratar espaços no caminho)
-                self.status_updater.update_log(f"Removendo diretório de saída: {target_path}")
-                stdin, stdout, stderr = self.ssh.exec_command(f"rm -rf \"{target_path}\"")
+                self.status_updater.update_log(f"Removendo diretório de saída: {remote_dir}")
+                stdin, stdout, stderr = self.ssh.exec_command(f"rm -rf \"{remote_dir}\"")
                 exit_status = stdout.channel.recv_exit_status()
                 
                 if exit_status != 0:
                     error = stderr.read().decode().strip()
                     return False, f"Erro ao remover diretório de saída: {error}"
                     
-                return True, f"Diretório de saída removido com sucesso: {target_path}"
+                return True, f"Diretório de saída removido com sucesso: {remote_dir}"
                 
             else:
                 # Remover todos os arquivos no diretório remoto
@@ -1518,8 +1518,7 @@ echo $!  # Retorna o PID do processo
                     stdin, stdout, stderr = self.ssh.exec_command(f"find \"{remote_dir}\" -mindepth 1 | wc -l")
                     remaining = int(stdout.read().decode().strip() or "0")
                     
-                    if remaining > 0:
-                        self.status_updater.update_log(f"Aviso: {remaining} item(s) não pôde(puderam) ser removido(s)", "WARNING")
+                    if remaining > 0:                        self.status_updater.update_log(f"Aviso: {remaining} item(s) não pôde(puderam) ser removido(s)", "WARNING")
                 except Exception as clean_error:
                     return False, f"Erro ao limpar diretório: {str(clean_error)}"
         except Exception as e:
